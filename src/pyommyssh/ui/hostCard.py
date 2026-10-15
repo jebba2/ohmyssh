@@ -1,0 +1,156 @@
+"""The dashboard card for one host: identity, health bars, and status."""
+
+from __future__ import annotations
+
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QContextMenuEvent, QMouseEvent
+from PySide6.QtWidgets import QFrame, QLabel, QMenu, QProgressBar, QVBoxLayout, QWidget
+
+from pyommyssh.core.hosts import Host, HostSource
+from pyommyssh.core.metrics import HostMetrics
+
+WARN_THRESHOLD = 60.0
+CRITICAL_THRESHOLD = 85.0
+
+
+def usageLevel(percent: float) -> str:
+    """Classify a usage percentage for bar coloring."""
+    if percent >= CRITICAL_THRESHOLD:
+        return "critical"
+    if percent >= WARN_THRESHOLD:
+        return "warn"
+    return "ok"
+
+
+def _repolish(widget: QWidget) -> None:
+    """Make the stylesheet re-evaluate dynamic properties on a widget."""
+    style = widget.style()
+    style.unpolish(widget)
+    style.polish(widget)
+
+
+class HostCard(QFrame):
+    """Shows one host's latest metrics and offers actions on it."""
+
+    openTerminalRequested = Signal(Host)
+    editRequested = Signal(Host)
+    removeRequested = Signal(Host)
+
+    def __init__(self, host: Host, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.host = host
+        self.setObjectName("hostCard")
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self.nameLabel = QLabel(host.name)
+        self.nameLabel.setObjectName("hostName")
+        self.addressLabel = QLabel(host.displayAddress())
+        self.addressLabel.setObjectName("hostAddress")
+        self.statusLabel = QLabel("Not checked yet")
+        self.statusLabel.setObjectName("hostStatus")
+        self.osLabel = QLabel("")
+        self.uptimeLabel = QLabel("")
+        self.loadLabel = QLabel("")
+        self.cpuBar = self._makeBar("CPU")
+        self.memBar = self._makeBar("RAM")
+        self.diskBar = self._makeBar("Disk")
+        self.dockerBadge = QLabel("")
+        self.dockerBadge.setObjectName("dockerBadge")
+        self.dockerBadge.setVisible(False)
+        self.processesLabel = QLabel("")
+        self.processesLabel.setObjectName("hostProcesses")
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(4)
+        for widget in (
+            self.nameLabel,
+            self.addressLabel,
+            self.statusLabel,
+            self.osLabel,
+            self.uptimeLabel,
+            self.loadLabel,
+            self.cpuBar,
+            self.memBar,
+            self.diskBar,
+            self.dockerBadge,
+            self.processesLabel,
+        ):
+            layout.addWidget(widget)
+        self._resetBars()
+
+    def _makeBar(self, label: str) -> QProgressBar:
+        bar = QProgressBar()
+        bar.setRange(0, 100)
+        bar.setTextVisible(True)
+        bar.setFormat(f"{label} %p%")
+        bar.setProperty("metricLabel", label)
+        return bar
+
+    def _setBar(self, bar: QProgressBar, value: float | None) -> None:
+        label = bar.property("metricLabel")
+        if value is None:
+            bar.setValue(0)
+            bar.setFormat(f"{label} n/a")
+            bar.setProperty("usageLevel", "unknown")
+        else:
+            bar.setValue(round(value))
+            bar.setFormat(f"{label} %p%")
+            bar.setProperty("usageLevel", usageLevel(value))
+        _repolish(bar)
+
+    def _resetBars(self) -> None:
+        for bar in (self.cpuBar, self.memBar, self.diskBar):
+            self._setBar(bar, None)
+
+    def _setState(self, state: str) -> None:
+        self.setProperty("state", state)
+        _repolish(self)
+
+    def setConnecting(self) -> None:
+        """Show that a refresh is in flight."""
+        self.statusLabel.setText("Connecting...")
+        self._setState("connecting")
+
+    def setMetrics(self, metrics: HostMetrics) -> None:
+        """Display a fresh metrics snapshot."""
+        self._setBar(self.cpuBar, metrics.cpuPercent)
+        self._setBar(self.memBar, metrics.memPercent)
+        self._setBar(self.diskBar, metrics.diskPercent)
+        self.osLabel.setText(metrics.osName or "Unknown OS")
+        self.uptimeLabel.setText(f"up {metrics.uptime}" if metrics.uptime else "")
+        if metrics.loadAverage:
+            one, five, fifteen = metrics.loadAverage
+            self.loadLabel.setText(f"load {one:g} {five:g} {fifteen:g}")
+        else:
+            self.loadLabel.setText("")
+        if metrics.dockerContainers is None:
+            self.dockerBadge.setVisible(False)
+        else:
+            count = metrics.dockerContainers
+            self.dockerBadge.setText(f"{count} container{'' if count == 1 else 's'}")
+            self.dockerBadge.setVisible(True)
+        self.processesLabel.setText(
+            "  ".join(f"{process.name} {process.cpuPercent:g}%" for process in metrics.processes)
+        )
+        self.statusLabel.setText("Online")
+        self._setState("online")
+
+    def setError(self, message: str) -> None:
+        """Show a failed refresh and clear stale numbers."""
+        self._resetBars()
+        self.statusLabel.setText(message)
+        self._setState("error")
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.openTerminalRequested.emit(self.host)
+        super().mouseDoubleClickEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        menu = QMenu(self)
+        menu.addAction("Open terminal", lambda: self.openTerminalRequested.emit(self.host))
+        if self.host.source == HostSource.APP:
+            menu.addAction("Edit host...", lambda: self.editRequested.emit(self.host))
+            menu.addAction("Remove host", lambda: self.removeRequested.emit(self.host))
+        menu.exec(event.globalPos())

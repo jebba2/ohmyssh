@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterator
 from pathlib import Path
 
 import paramiko
 import pytest
+
+# Widget tests must not need a display; this has to be set before Qt loads.
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from tests.sshserver import TestSshServer
 
