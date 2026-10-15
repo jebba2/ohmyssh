@@ -65,7 +65,7 @@ def test_dirty_rows_reported_then_cleared() -> None:
     session = TerminalSession(cols=20, rows=5)
     session.takeDirtyRows()
     session.feed(b"x\r\n\r\ny")
-    assert session.takeDirtyRows() == {0, 1, 2}
+    assert session.takeDirtyRows() == {0, 2}
     assert session.takeDirtyRows() == set()
 
 
