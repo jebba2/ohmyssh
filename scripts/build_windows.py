@@ -16,12 +16,14 @@ antivirus software than one-file builds.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 ENTRY_POINT = PROJECT_ROOT / "src" / "pyommyssh" / "__main__.py"
+ICON_DIR = PROJECT_ROOT / "src" / "pyommyssh" / "ui" / "icons"
 WORK_DIR = PROJECT_ROOT / "working" / "build"
 DIST_DIR = PROJECT_ROOT / "dist"
 LOG_FILE = WORK_DIR / "pyinstaller.log"
@@ -48,6 +50,8 @@ def pyinstallerCommand(oneFile: bool, clean: bool) -> list[str]:
         str(WORK_DIR),
         "--distpath",
         str(DIST_DIR),
+        "--add-data",
+        f"{ICON_DIR}{os.pathsep}pyommyssh/ui/icons",
     ]
     if oneFile:
         command.append("--onefile")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.hosts import Host
+from pyommyssh.core.hosts import Host, HostSource
 from pyommyssh.core.metrics import HostMetrics, ProcessInfo
 from pyommyssh.ui.hostCard import HostCard, usageLevel
 
@@ -91,18 +91,44 @@ def test_double_click_requests_terminal(qtbot: QtBot) -> None:
     assert blocker.args == [_host()]
 
 
+def _nameRowWidgets(card: HostCard) -> list[object]:
+    nameRow = card.nameLabel.parentWidget().layout().itemAt(0).layout()
+    assert nameRow is not None
+    return [nameRow.itemAt(i).widget() for i in range(nameRow.count())]
+
+
 def test_terminal_button_sits_beside_name_and_opens_terminal(qtbot: QtBot) -> None:
     card = HostCard(_host())
     qtbot.addWidget(card)
     assert card.terminalButton.toolTip() == "Open terminal"
-    nameRow = card.nameLabel.parentWidget().layout().itemAt(0).layout()
-    assert nameRow is not None
-    rowWidgets = [nameRow.itemAt(i).widget() for i in range(nameRow.count())]
+    assert not card.terminalButton.icon().isNull()
+    rowWidgets = _nameRowWidgets(card)
     assert card.nameLabel in rowWidgets
     assert card.terminalButton in rowWidgets
     with qtbot.waitSignal(card.openTerminalRequested) as blocker:
         qtbot.mouseClick(card.terminalButton, Qt.MouseButton.LeftButton)
     assert blocker.args == [_host()]
+
+
+def test_edit_button_sits_beside_name_and_requests_edit(qtbot: QtBot) -> None:
+    card = HostCard(_host())
+    qtbot.addWidget(card)
+    assert card.editButton.toolTip() == "Edit host"
+    assert not card.editButton.icon().isNull()
+    assert card.editButton in _nameRowWidgets(card)
+    with qtbot.waitSignal(card.editRequested) as blocker:
+        qtbot.mouseClick(card.editButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [_host()]
+
+
+def test_edit_button_is_offered_for_ssh_config_hosts_too(qtbot: QtBot) -> None:
+    configHost = Host(name="cfg", hostname="cfg.local", source=HostSource.SSH_CONFIG)
+    card = HostCard(configHost)
+    qtbot.addWidget(card)
+    assert not card.editButton.isHidden()
+    with qtbot.waitSignal(card.editRequested) as blocker:
+        qtbot.mouseClick(card.editButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [configHost]
 
 
 def test_usage_level_thresholds() -> None:

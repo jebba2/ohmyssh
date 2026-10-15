@@ -22,8 +22,10 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] `Ctrl+N` opens Add host; leaving Name blank shows "Name is required"
 - [ ] Reusing an existing name shows "A host named '...' already exists"
 - [ ] Saving a new host adds a card and writes `%APPDATA%\pyommyssh\hosts.toml`
+- [ ] The pencil button beside the name opens Edit host prefilled; saving changes the card
+- [ ] Editing an SSH config host saves an app host with the same name that replaces it on the dashboard, and `~/.ssh/config` is unchanged
 - [ ] Right-click an app host: Edit host changes the card; Remove host asks to confirm and removes it
-- [ ] Right-click an SSH config host: only Open terminal is offered
+- [ ] Right-click an SSH config host: Open terminal and Edit host are offered, Remove host is not
 - [ ] An app host with the same name as an SSH config host replaces it on the dashboard
 
 ## Dashboard
@@ -51,7 +53,8 @@ Keep this file current with the features and commands that exist. Tick the boxes
 ## Terminal
 
 - [ ] Double-clicking a card opens a tab named after the host with a shell prompt
-- [ ] Clicking the `>_` button beside the host name opens the same kind of tab; hovering shows "Open terminal"
+- [ ] Clicking the terminal icon beside the host name opens the same kind of tab; hovering shows "Open terminal"
+- [ ] Both card icons render in the packaged exe (not blank squares)
 - [ ] Typing, Enter, Backspace, arrows, Tab completion, and `Ctrl+C` behave as in a normal terminal
 - [ ] `vim` or `htop` renders with colors and redraws correctly
 - [ ] Resizing the window resizes the remote PTY (`tput cols` matches)

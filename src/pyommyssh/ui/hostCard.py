@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
 from PySide6.QtWidgets import (
     QFrame,
@@ -17,9 +17,11 @@ from PySide6.QtWidgets import (
 
 from pyommyssh.core.hosts import Host, HostSource
 from pyommyssh.core.metrics import HostMetrics
+from pyommyssh.ui.icons import loadIcon
 
 WARN_THRESHOLD = 60.0
 CRITICAL_THRESHOLD = 85.0
+ICON_SIZE = 18
 
 
 def usageLevel(percent: float) -> str:
@@ -54,15 +56,14 @@ class HostCard(QFrame):
 
         self.nameLabel = QLabel(host.name)
         self.nameLabel.setObjectName("hostName")
-        self.terminalButton = QToolButton()
-        self.terminalButton.setObjectName("terminalButton")
-        self.terminalButton.setText(">_")
-        self.terminalButton.setToolTip("Open terminal")
-        self.terminalButton.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.terminalButton = self._makeIconButton("terminal", "Open terminal")
         self.terminalButton.clicked.connect(lambda: self.openTerminalRequested.emit(self.host))
+        self.editButton = self._makeIconButton("edit", "Edit host")
+        self.editButton.clicked.connect(lambda: self.editRequested.emit(self.host))
         nameRow = QHBoxLayout()
         nameRow.addWidget(self.nameLabel)
         nameRow.addStretch(1)
+        nameRow.addWidget(self.editButton)
         nameRow.addWidget(self.terminalButton)
         self.addressLabel = QLabel(host.displayAddress())
         self.addressLabel.setObjectName("hostAddress")
@@ -97,6 +98,16 @@ class HostCard(QFrame):
         ):
             layout.addWidget(widget)
         self._resetBars()
+
+    def _makeIconButton(self, iconName: str, toolTip: str) -> QToolButton:
+        button = QToolButton()
+        button.setObjectName("cardButton")
+        button.setIcon(loadIcon(iconName))
+        button.setIconSize(QSize(ICON_SIZE, ICON_SIZE))
+        button.setToolTip(toolTip)
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.setAutoRaise(True)
+        return button
 
     def _makeBar(self, label: str) -> QProgressBar:
         bar = QProgressBar()
@@ -169,7 +180,7 @@ class HostCard(QFrame):
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         menu = QMenu(self)
         menu.addAction("Open terminal", lambda: self.openTerminalRequested.emit(self.host))
+        menu.addAction("Edit host...", lambda: self.editRequested.emit(self.host))
         if self.host.source == HostSource.APP:
-            menu.addAction("Edit host...", lambda: self.editRequested.emit(self.host))
             menu.addAction("Remove host", lambda: self.removeRequested.emit(self.host))
         menu.exec(event.globalPos())

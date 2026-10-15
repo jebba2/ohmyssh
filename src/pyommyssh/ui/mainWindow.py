@@ -21,7 +21,7 @@ from PySide6.QtWidgets import (
 
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host, HostStore, mergeHosts
+from pyommyssh.core.hosts import Host, HostSource, HostStore, mergeHosts
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
 from pyommyssh.ui.dashboard import DashboardView
@@ -163,12 +163,24 @@ class MainWindow(QMainWindow):
             self.saveNewHost(host)
             self.refreshHost(host)
 
+    def applyEdit(self, original: Host, edited: Host) -> None:
+        """Save an edited host.
+
+        App-managed hosts are updated in place. Hosts from ~/.ssh/config are
+        never rewritten, so editing one saves an app-managed copy that takes
+        precedence over the config entry with the same name.
+        """
+        if original.source == HostSource.APP:
+            self.saveEditedHost(original.name, edited)
+        else:
+            self.saveNewHost(edited)
+
     def _editHostDialog(self, host: Host) -> None:
         names = {candidate.name for candidate in self.hosts()}
         dialog = HostDialog(host=host, existingNames=names, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             edited = dialog.host()
-            self.saveEditedHost(host.name, edited)
+            self.applyEdit(host, edited)
             self.refreshHost(edited)
 
     def _confirmRemove(self, host: Host) -> None:

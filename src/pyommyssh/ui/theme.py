@@ -63,17 +63,14 @@ QLabel#hostName {
     font-weight: bold;
     color: #ffffff;
 }
-QToolButton#terminalButton {
-    background: #3a3a44;
-    color: #9cdcfe;
-    font-family: Consolas, monospace;
-    font-weight: bold;
+QToolButton#cardButton {
+    background: transparent;
+    border: none;
     border-radius: 4px;
-    padding: 2px 6px;
+    padding: 2px;
 }
-QToolButton#terminalButton:hover {
-    background: #1f4f78;
-    color: #ffffff;
+QToolButton#cardButton:hover {
+    background: #3a3a44;
 }
 QLabel#hostAddress, QLabel#hostProcesses {
     color: #9a9a9a;

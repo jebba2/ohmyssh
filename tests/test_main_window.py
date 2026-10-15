@@ -9,7 +9,7 @@ import pytest
 from pytestqt.qtbot import QtBot
 
 from pyommyssh.core.config import AppSettings
-from pyommyssh.core.hosts import Host, HostStore
+from pyommyssh.core.hosts import Host, HostSource, HostStore
 from pyommyssh.ui.mainWindow import MainWindow
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TestSshServer, hostFor
 
@@ -195,6 +195,28 @@ def test_add_edit_remove_host(
     window.removeHost(Host(name="renamed", hostname="r.local"))
     assert [h.name for h in window.hosts()] == ["cfg"]
     assert _storedNames(tmp_path) == []
+
+
+def test_editing_an_ssh_config_host_saves_an_overriding_app_host(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    configHost = Host(name="cfg", hostname="old.local", source=HostSource.SSH_CONFIG)
+    window = _window(qtbot, store, tmp_path, sshConfigHosts=[configHost])
+    windows.append(window)
+
+    window.applyEdit(configHost, Host(name="cfg", hostname="new.local", tags=["lab"]))
+    hosts = window.hosts()
+    assert [(h.name, h.hostname, h.source) for h in hosts] == [("cfg", "new.local", HostSource.APP)]
+    assert _storedNames(tmp_path) == ["cfg"]
+    assert len(window.dashboard.cards()) == 1
+    card = window.dashboard.cardFor("cfg")
+    assert card is not None
+    assert card.addressLabel.text() == "new.local"
+
+    # Editing the override again updates it in place rather than adding another.
+    window.applyEdit(hosts[0], Host(name="cfg", hostname="newer.local"))
+    assert [h.hostname for h in window.hosts()] == ["newer.local"]
+    assert _storedNames(tmp_path) == ["cfg"]
 
 
 def test_group_by_tag_action_toggles_dashboard(
