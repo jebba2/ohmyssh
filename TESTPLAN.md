@@ -51,6 +51,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 ## Terminal
 
 - [ ] Double-clicking a card opens a tab named after the host with a shell prompt
+- [ ] Clicking the `>_` button beside the host name opens the same kind of tab; hovering shows "Open terminal"
 - [ ] Typing, Enter, Backspace, arrows, Tab completion, and `Ctrl+C` behave as in a normal terminal
 - [ ] `vim` or `htop` renders with colors and redraws correctly
 - [ ] Resizing the window resizes the remote PTY (`tput cols` matches)

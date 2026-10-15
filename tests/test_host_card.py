@@ -91,6 +91,20 @@ def test_double_click_requests_terminal(qtbot: QtBot) -> None:
     assert blocker.args == [_host()]
 
 
+def test_terminal_button_sits_beside_name_and_opens_terminal(qtbot: QtBot) -> None:
+    card = HostCard(_host())
+    qtbot.addWidget(card)
+    assert card.terminalButton.toolTip() == "Open terminal"
+    nameRow = card.nameLabel.parentWidget().layout().itemAt(0).layout()
+    assert nameRow is not None
+    rowWidgets = [nameRow.itemAt(i).widget() for i in range(nameRow.count())]
+    assert card.nameLabel in rowWidgets
+    assert card.terminalButton in rowWidgets
+    with qtbot.waitSignal(card.openTerminalRequested) as blocker:
+        qtbot.mouseClick(card.terminalButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [_host()]
+
+
 def test_usage_level_thresholds() -> None:
     assert usageLevel(0) == "ok"
     assert usageLevel(59.9) == "ok"

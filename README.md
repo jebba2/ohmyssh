@@ -7,7 +7,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Hosts from your SSH config.** `~/.ssh/config` is read at startup, including `Include` files and `ProxyJump`. It is never written to.
 - **App-managed hosts.** Add, edit, and remove hosts inside the app. They are stored separately in `hosts.toml`.
 - **Live dashboard.** Every host is a card with CPU, RAM, and disk bars, OS name, uptime, load average, a Docker badge with the running container count, and the top three processes. Bars turn yellow at 60% and red at 85%. Cards refresh on a timer and can be grouped by tag.
-- **Real terminals.** Double-click a card to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
+- **Real terminals.** Click the `>_` button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
 - **One connection per host.** The dashboard poll and every terminal tab share a single SSH connection to each host.
 - **ProxyJump.** Multi-hop chains such as `ProxyJump bastion,inner` are honored, including nested jumps.

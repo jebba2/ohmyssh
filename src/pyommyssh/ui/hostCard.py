@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QContextMenuEvent, QMouseEvent
-from PySide6.QtWidgets import QFrame, QLabel, QMenu, QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QMenu,
+    QProgressBar,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 from pyommyssh.core.hosts import Host, HostSource
 from pyommyssh.core.metrics import HostMetrics
@@ -45,6 +54,16 @@ class HostCard(QFrame):
 
         self.nameLabel = QLabel(host.name)
         self.nameLabel.setObjectName("hostName")
+        self.terminalButton = QToolButton()
+        self.terminalButton.setObjectName("terminalButton")
+        self.terminalButton.setText(">_")
+        self.terminalButton.setToolTip("Open terminal")
+        self.terminalButton.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.terminalButton.clicked.connect(lambda: self.openTerminalRequested.emit(self.host))
+        nameRow = QHBoxLayout()
+        nameRow.addWidget(self.nameLabel)
+        nameRow.addStretch(1)
+        nameRow.addWidget(self.terminalButton)
         self.addressLabel = QLabel(host.displayAddress())
         self.addressLabel.setObjectName("hostAddress")
         self.statusLabel = QLabel("Not checked yet")
@@ -63,8 +82,8 @@ class HostCard(QFrame):
 
         layout = QVBoxLayout(self)
         layout.setSpacing(4)
+        layout.addLayout(nameRow)
         for widget in (
-            self.nameLabel,
             self.addressLabel,
             self.statusLabel,
             self.osLabel,
