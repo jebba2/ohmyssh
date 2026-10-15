@@ -4,14 +4,14 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 ## Automated
 
-- [ ] `uv run pytest` passes with zero warnings
-- [ ] No Pylance errors in `src/`, `tests/`, `examples/`, `scripts/`
+- [x] `uv run pytest` passes with zero warnings
+- [x] No Pylance errors in `src/`, `tests/`, `examples/`, `scripts/`
 
 ## Running from source
 
-- [ ] `uv run pyommyssh` opens the main window with a Dashboard tab
+- [x] `uv run pyommyssh` opens the main window with a Dashboard tab
 - [ ] `uv run python -m pyommyssh` does the same
-- [ ] `working/logs/pyommyssh.log` is created and records the host counts loaded
+- [x] `working/logs/pyommyssh.log` is created and records the host counts loaded
 
 ## Hosts
 
@@ -81,15 +81,15 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 ## Standalone build
 
-- [ ] `uv run python scripts/build_windows.py` finishes and prints the output path and size
+- [x] `uv run python scripts/build_windows.py` finishes and prints the output path and size
 - [ ] `dist/pyommyssh/pyommyssh.exe` starts on a machine without Python
 - [ ] The packaged app reads `~/.ssh/config`, shows cards, and opens a terminal
-- [ ] Logs appear in `working/logs/` beside the executable
+- [x] Logs appear in `working/logs/` beside the executable
 - [ ] `--onefile` produces `dist/pyommyssh.exe` that starts
 - [ ] A failed build prints the last log lines and the log path
 
 ## Examples
 
-- [ ] `uv run python examples/list_hosts.py` lists the same hosts the app shows
+- [x] `uv run python examples/list_hosts.py` lists the same hosts the app shows
 - [ ] `uv run python examples/probe_host.py <host>` prints metrics for a reachable host
-- [ ] `uv run python examples/probe_host.py` with no argument prints usage
+- [x] `uv run python examples/probe_host.py` with no argument prints usage
