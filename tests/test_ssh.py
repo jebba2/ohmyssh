@@ -9,18 +9,14 @@ import pytest
 
 from pyommyssh.core.hosts import Host
 from pyommyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError
-from tests.sshserver import EXEC_PREFIX, SHELL_BANNER, TEST_PASSWORD, TEST_USER, TestSshServer
-
-
-def _hostFor(server: TestSshServer, name: str = "box", **overrides: object) -> Host:
-    fields: dict[str, object] = {
-        "name": name,
-        "hostname": "127.0.0.1",
-        "user": TEST_USER,
-        "port": server.port,
-    }
-    fields.update(overrides)
-    return Host(**fields)  # type: ignore[arg-type]
+from tests.sshserver import (
+    EXEC_PREFIX,
+    SHELL_BANNER,
+    TEST_PASSWORD,
+    TEST_USER,
+    TestSshServer,
+    hostFor as _hostFor,
+)
 
 
 def _readUntil(channel: paramiko.Channel, expected: bytes, timeout: float = 5.0) -> bytes:

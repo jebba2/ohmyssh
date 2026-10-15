@@ -266,6 +266,32 @@ class HostStore:
             tomli_w.dump({"hosts": [_hostToToml(h) for h in self._hosts]}, handle)
 
 
+def resolveJumpChain(host: Host, hosts: list[Host]) -> list[Host]:
+    """Return the jump hosts to pass through before ``host``, outermost first.
+
+    ``ProxyJump`` may list several comma-separated names, and each jump host
+    may itself declare a ProxyJump. Unknown names and cycles raise ValueError.
+    """
+    byName = {candidate.name: candidate for candidate in hosts}
+    visited = {host.name}
+
+    def expand(current: Host) -> list[Host]:
+        chain: list[Host] = []
+        names = [name.strip() for name in (current.proxyJump or "").split(",") if name.strip()]
+        for name in names:
+            if name in visited:
+                raise ValueError(f"ProxyJump cycle through '{name}'")
+            jump = byName.get(name)
+            if jump is None:
+                raise ValueError(f"ProxyJump host '{name}' is not a known host")
+            visited.add(name)
+            chain.extend(expand(jump))
+            chain.append(jump)
+        return chain
+
+    return expand(host)
+
+
 def mergeHosts(fromSshConfig: list[Host], fromApp: list[Host]) -> list[Host]:
     """Combine both host sources; an app host with the same name wins."""
     appByName = {h.name: h for h in fromApp}

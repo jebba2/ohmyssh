@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import socket
 import threading
+from pathlib import Path
 from typing import Any
 
 import paramiko
+
+from pyommyssh.core.hosts import Host
 
 TEST_USER = "tester"
 TEST_PASSWORD = "secret"
@@ -134,6 +137,23 @@ class _Handler(paramiko.ServerInterface):
         self._server.directTcpipRequests.append(destination)
         self._server.forwardDestinations[chanid] = destination
         return paramiko.OPEN_SUCCEEDED
+
+
+def hostFor(
+    server: TestSshServer,
+    name: str = "box",
+    identityFile: Path | None = None,
+    proxyJump: str | None = None,
+) -> Host:
+    """Build a Host that points at a running test server."""
+    return Host(
+        name=name,
+        hostname="127.0.0.1",
+        user=TEST_USER,
+        port=server.port,
+        identityFile=identityFile,
+        proxyJump=proxyJump,
+    )
 
 
 class TestSshServer:
