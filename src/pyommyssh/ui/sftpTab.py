@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import posixpath
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QThreadPool, Signal
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QProgressBar,
@@ -25,21 +27,42 @@ from pyommyssh.ui.filePane import FilePane, formatSize
 from pyommyssh.ui.sftpBridge import SftpBridge
 from pyommyssh.ui.workers import LocalListWorker
 
-# Given the names that would be replaced; returns True to go ahead.
-ReplacePrompt = Callable[[list[str]], bool]
+MAX_LISTED_NAMES = 10
 
 
-def askReplaceWithDialog(parent: QWidget) -> ReplacePrompt:
-    """Return a prompt that asks in a modal dialog before replacing files."""
+def _listNames(names: list[str]) -> str:
+    return "\n".join(names[:MAX_LISTED_NAMES]) + ("\n..." if len(names) > MAX_LISTED_NAMES else "")
 
-    def prompt(names: list[str]) -> bool:
-        listing = "\n".join(names[:10]) + ("\n..." if len(names) > 10 else "")
-        answer = QMessageBox.question(
-            parent, "Replace files", f"Replace {len(names)} item(s)?\n\n{listing}"
-        )
+
+@dataclass
+class SftpPrompts:
+    """The questions the SFTP tab asks; tests swap in canned answers.
+
+    ``replace`` gets the names that would be overwritten and returns True to
+    go ahead. ``text`` gets a title, a label, and a default and returns the
+    entered text or None. ``confirm`` gets a question and returns True for yes.
+    """
+
+    replace: Callable[[list[str]], bool]
+    text: Callable[[str, str, str], str | None]
+    confirm: Callable[[str], bool]
+
+
+def dialogSftpPrompts(parent: QWidget) -> SftpPrompts:
+    """Prompts that ask with modal dialogs on ``parent``."""
+
+    def replace(names: list[str]) -> bool:
+        answer = QMessageBox.question(parent, "Replace files", f"Replace {len(names)} item(s)?\n\n{_listNames(names)}")
         return answer == QMessageBox.StandardButton.Yes
 
-    return prompt
+    def text(title: str, label: str, default: str) -> str | None:
+        entered, accepted = QInputDialog.getText(parent, title, label, text=default)
+        return entered if accepted else None
+
+    def confirm(question: str) -> bool:
+        return QMessageBox.question(parent, "Confirm", question) == QMessageBox.StandardButton.Yes
+
+    return SftpPrompts(replace=replace, text=text, confirm=confirm)
 
 
 def localParent(path: str) -> str | None:
@@ -65,13 +88,13 @@ class SftpTab(QWidget):
         host: Host,
         pool: ConnectionPool,
         threadPool: QThreadPool,
-        replacePrompt: ReplacePrompt | None = None,
+        prompts: SftpPrompts | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.host = host
         self._threadPool = threadPool
-        self._replacePrompt = replacePrompt or askReplaceWithDialog(self)
+        self._prompts = prompts or dialogSftpPrompts(self)
         self._liveSignals: set[QObject] = set()
         self._pendingUploads: list[tuple[Path, str]] | None = None
         self._transferLabel = ""
@@ -82,6 +105,8 @@ class SftpTab(QWidget):
         self._bridge.listed.connect(self._onRemoteListed)
         self._bridge.listFailed.connect(lambda _path, message: self.remotePane.setError(message))
         self._bridge.existenceChecked.connect(self._onExistenceChecked)
+        self._bridge.operationDone.connect(lambda _message: self.listRemote(self.remotePane.currentPath()))
+        self._bridge.operationFailed.connect(self.showStatus)
         self._bridge.transferStarted.connect(self._onTransferStarted)
         self._bridge.transferProgress.connect(self._onTransferProgress)
         self._bridge.transferFinished.connect(self._onTransferFinished)
@@ -99,6 +124,24 @@ class SftpTab(QWidget):
         self.remotePane = FilePane(host.name)
         self.remotePane.navigateRequested.connect(self.listRemote)
         self.remotePane.selectionChanged.connect(self._updateButtons)
+
+        self.newFolderButton = QPushButton("New folder")
+        self.newFolderButton.clicked.connect(self.createRemoteFolder)
+        self.renameButton = QPushButton("Rename")
+        self.renameButton.clicked.connect(self.renameSelected)
+        self.deleteButton = QPushButton("Delete")
+        self.deleteButton.clicked.connect(self.deleteSelected)
+        self.refreshButton = QPushButton("Refresh")
+        self.refreshButton.clicked.connect(self.refresh)
+        remoteActions = QHBoxLayout()
+        for button in (self.newFolderButton, self.renameButton, self.deleteButton, self.refreshButton):
+            remoteActions.addWidget(button)
+        remoteActions.addStretch(1)
+        remoteSide = QWidget()
+        remoteLayout = QVBoxLayout(remoteSide)
+        remoteLayout.setContentsMargins(0, 0, 0, 0)
+        remoteLayout.addWidget(self.remotePane, 1)
+        remoteLayout.addLayout(remoteActions)
 
         self.uploadButton = QPushButton("Upload →")
         self.uploadButton.setToolTip("Copy the selected local items to the remote folder")
@@ -118,7 +161,7 @@ class SftpTab(QWidget):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self.localPane)
         splitter.addWidget(middleWidget)
-        splitter.addWidget(self.remotePane)
+        splitter.addWidget(remoteSide)
         splitter.setChildrenCollapsible(False)
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
@@ -199,8 +242,52 @@ class SftpTab(QWidget):
 
     def _updateButtons(self) -> None:
         connected = self._bridge.isConnected() and bool(self.remotePane.currentPath())
+        remoteSelected = self.remotePane.selectedEntries()
         self.uploadButton.setEnabled(connected and bool(self.localPane.selectedEntries()))
-        self.downloadButton.setEnabled(connected and bool(self.remotePane.selectedEntries()))
+        self.downloadButton.setEnabled(connected and bool(remoteSelected))
+        self.newFolderButton.setEnabled(connected)
+        self.renameButton.setEnabled(connected and len(remoteSelected) == 1)
+        self.deleteButton.setEnabled(connected and bool(remoteSelected))
+
+    # Remote operations
+
+    def refresh(self) -> None:
+        """List both panes again."""
+        if self.localPane.currentPath():
+            self.listLocal(self.localPane.currentPath())
+        if self.remotePane.currentPath():
+            self.listRemote(self.remotePane.currentPath())
+
+    def createRemoteFolder(self) -> None:
+        """Ask for a name and create that folder in the remote folder on show."""
+        remoteDir = self.remotePane.currentPath()
+        if not remoteDir:
+            return
+        name = self._prompts.text("New folder", "Folder name", "")
+        if name and name.strip():
+            self._bridge.mkdir(posixpath.join(remoteDir, name.strip()))
+
+    def renameSelected(self) -> None:
+        """Ask for a new name for the one selected remote item."""
+        selected = self.remotePane.selectedEntries()
+        if len(selected) != 1:
+            return
+        entry = selected[0]
+        name = self._prompts.text("Rename", "New name", entry.name)
+        if name and name.strip() and name.strip() != entry.name:
+            self._bridge.rename(entry.path, posixpath.join(posixpath.dirname(entry.path), name.strip()))
+
+    def deleteSelected(self) -> None:
+        """Confirm once, then delete the selected remote files and empty folders."""
+        selected = self.remotePane.selectedEntries()
+        if not selected:
+            return
+        names = [entry.name for entry in selected]
+        plural = "item" if len(names) == 1 else "items"
+        if not self._prompts.confirm(f"Delete {len(names)} {plural} from {self.host.name}?\n\n{_listNames(names)}"):
+            return
+        for entry in selected:
+            self._bridge.remove(entry.path)
 
     def uploadSelected(self) -> None:
         """Copy the selected local items into the remote folder on show."""
@@ -219,7 +306,7 @@ class SftpTab(QWidget):
         if pairs is None:
             return
         clashing = [posixpath.basename(remote) for _, remote in pairs if exists.get(remote)]
-        if clashing and not self._replacePrompt(clashing):
+        if clashing and not self._prompts.replace(clashing):
             self.transferStrip.setVisible(False)
             return
         self._showTransferStrip("Preparing...")
@@ -234,7 +321,7 @@ class SftpTab(QWidget):
             return
         pairs = [(entry.path, Path(localDir) / entry.name) for entry in entries]
         clashing = [entry.name for entry in entries if (Path(localDir) / entry.name).exists()]
-        if clashing and not self._replacePrompt(clashing):
+        if clashing and not self._prompts.replace(clashing):
             return
         self._showTransferStrip("Preparing...")
         for remote, local in pairs:
@@ -270,7 +357,4 @@ class SftpTab(QWidget):
 
     def _onTransfersIdle(self) -> None:
         self.transferStrip.setVisible(False)
-        if self.localPane.currentPath():
-            self.listLocal(self.localPane.currentPath())
-        if self.remotePane.currentPath():
-            self.listRemote(self.remotePane.currentPath())
+        self.refresh()

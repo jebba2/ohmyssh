@@ -32,7 +32,7 @@ from pyommyssh.ui.dashboard import DashboardView
 from pyommyssh.ui.hostDialog import HostDialog
 from pyommyssh.ui.keyGenerateDialog import KeyGenerateDialog
 from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
-from pyommyssh.ui.sftpTab import SftpTab, askReplaceWithDialog
+from pyommyssh.ui.sftpTab import SftpTab, dialogSftpPrompts
 from pyommyssh.ui.terminalTab import TerminalTab
 from pyommyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, TunnelSignals
 
@@ -78,8 +78,8 @@ class MainWindow(QMainWindow):
         self._sshConfigHosts = list(sshConfigHosts)
         self._pool = ConnectionPool(self.hosts, knownHostsPath)
         self._passwordPrompt = passwordPrompt or askPasswordWithDialog(self)
-        # Asked before an SFTP transfer replaces files; tests swap in a canned answer.
-        self.replacePrompt = askReplaceWithDialog(self)
+        # The questions SFTP tabs ask (replace, name, confirm); tests swap in canned answers.
+        self.sftpPrompts = dialogSftpPrompts(self)
         self._authDeclined: set[str] = set()
         self._liveSignals: set[QObject] = set()
         self._shuttingDown = False
@@ -434,7 +434,7 @@ class MainWindow(QMainWindow):
 
     def openSftp(self, host: Host) -> None:
         """Open a new tab with a two-pane file browser for the host."""
-        tab = SftpTab(host, self._pool, self._threadPool, replacePrompt=self.replacePrompt)
+        tab = SftpTab(host, self._pool, self._threadPool, prompts=self.sftpPrompts)
         tab.authRequired.connect(lambda: self._onSftpAuthRequired(tab))
         index = self.tabs.addTab(tab, f"{host.name} (files)")
         self.tabs.setCurrentIndex(index)

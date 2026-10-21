@@ -134,6 +134,11 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Opening a remote folder while a transfer runs shows "Loading..." then the folder
 - [ ] A transfer that skips an item (for example a symlink in a folder) finishes and shows "skipped 1 item(s)" with the reason above the panes
 - [ ] Closing the tab mid-transfer stops the transfer
+- [ ] New folder asks for a name and the folder appears on the right; a blank or cancelled name does nothing
+- [ ] Rename is enabled only with exactly one remote item selected; it asks with the current name prefilled and the listing shows the new name
+- [ ] Delete asks "Delete N items from <host>?" listing the names; No leaves them, Yes removes files and empty folders
+- [ ] Deleting a folder with contents shows "Could not remove ..." above the panes and leaves it
+- [ ] Refresh relists both panes and picks up files created outside the app
 - [ ] `Ctrl+K` lists the SFTP tab as "<host> (files, tab N)" and Enter switches to it
 - [ ] Closing the tab closes its SFTP channels (two fewer sessions in the server's log)
 

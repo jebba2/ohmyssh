@@ -630,7 +630,7 @@ def test_replacing_files_asks_once_per_batch(
     asked: list[list[str]] = []
     answers = [False, True]
     window = _window(qtbot, store, tmp_path)
-    window.replacePrompt = lambda names: (asked.append(names), answers.pop(0))[1]
+    window.sftpPrompts.replace = lambda names: (asked.append(names), answers.pop(0))[1]
     windows.append(window)
     window.show()
     tab = _openSftpTab(qtbot, window, host, localDir)
@@ -648,6 +648,92 @@ def test_replacing_files_asks_once_per_batch(
     qtbot.waitUntil(lambda: len(asked) == 2, timeout=WAIT_MS)
     qtbot.waitUntil(lambda: (root / "c.txt").exists() and tab.transferStrip.isHidden(), timeout=WAIT_MS)
     assert (root / "a.txt").read_bytes() == b"new a"
+
+
+def test_new_folder_rename_and_delete_on_the_remote_side(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    (root / "a.txt").write_bytes(b"a")
+    (root / "b.txt").write_bytes(b"b")
+    (root / "full").mkdir()
+    (root / "full" / "inside.txt").write_bytes(b"x")
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    textAsked: list[tuple[str, str, str]] = []
+    textAnswers: list[str | None] = ["made", "renamed.txt", None]
+    confirmAsked: list[str] = []
+    confirmAnswers = [False, True, True]
+    window.sftpPrompts.text = lambda title, label, default: (textAsked.append((title, label, default)), textAnswers.pop(0))[1]
+    window.sftpPrompts.confirm = lambda message: (confirmAsked.append(message), confirmAnswers.pop(0))[1]
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    assert not tab.renameButton.isEnabled()
+    assert not tab.deleteButton.isEnabled()
+    assert tab.newFolderButton.isEnabled()
+
+    qtbot.mouseClick(tab.newFolderButton, Qt.MouseButton.LeftButton)
+    assert textAsked[-1] == ("New folder", "Folder name", "")
+    qtbot.waitUntil(lambda: "made" in tab.remotePane.names(), timeout=WAIT_MS)
+    assert (root / "made").is_dir()
+
+    _selectNamed(tab.remotePane, "a.txt")
+    assert tab.renameButton.isEnabled()
+    qtbot.mouseClick(tab.renameButton, Qt.MouseButton.LeftButton)
+    assert textAsked[-1] == ("Rename", "New name", "a.txt")
+    qtbot.waitUntil(lambda: "renamed.txt" in tab.remotePane.names(), timeout=WAIT_MS)
+    assert (root / "renamed.txt").read_bytes() == b"a" and not (root / "a.txt").exists()
+
+    # Rename needs exactly one item; a cancelled prompt changes nothing.
+    _selectNamed(tab.remotePane, "renamed.txt")
+    _selectNamed(tab.remotePane, "b.txt")
+    assert not tab.renameButton.isEnabled()
+    tab.remotePane.table.clearSelection()
+    _selectNamed(tab.remotePane, "b.txt")
+    qtbot.mouseClick(tab.renameButton, Qt.MouseButton.LeftButton)
+    qtbot.wait(200)
+    assert (root / "b.txt").exists()
+
+    # Deleting asks once for the batch; No leaves everything, Yes removes files and empty folders.
+    _selectNamed(tab.remotePane, "made")
+    assert tab.deleteButton.isEnabled()
+    qtbot.mouseClick(tab.deleteButton, Qt.MouseButton.LeftButton)
+    assert confirmAsked[-1] == "Delete 2 items from box?\n\nmade\nb.txt"
+    qtbot.wait(200)
+    assert (root / "b.txt").exists() and (root / "made").exists()
+    qtbot.mouseClick(tab.deleteButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.remotePane.names() == ["full", "renamed.txt"], timeout=WAIT_MS)
+
+    # A folder with contents is refused, and the reason is shown.
+    tab.remotePane.table.clearSelection()
+    _selectNamed(tab.remotePane, "full")
+    qtbot.mouseClick(tab.deleteButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.statusLabel.text().startswith("Could not remove /full"), timeout=WAIT_MS)
+    assert (root / "full" / "inside.txt").exists()
+
+
+def test_refresh_relists_both_panes(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    (root / "appeared.txt").write_bytes(b"r")
+    (localDir / "appeared.txt").write_bytes(b"l")
+    qtbot.mouseClick(tab.refreshButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.remotePane.names() == ["appeared.txt"], timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: tab.localPane.names() == ["..", "appeared.txt"], timeout=WAIT_MS)
 
 
 def test_cancel_button_stops_a_transfer(
