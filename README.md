@@ -14,7 +14,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Install a public key.** The key button beside a host's name picks a `.pub` file from `~/.ssh` and appends it to the host's `~/.ssh/authorized_keys` over the existing connection, the way `ssh-copy-id` does. The key is added only if it is not already there, the directory is set to 700 and the file to 600, and nothing else on the server is touched. The outcome shows in the status bar. The private key never leaves your machine.
 - **One connection per host.** The dashboard poll, every terminal tab, the tunnel, and key installs share a single SSH connection to each host.
 - **ProxyJump.** Multi-hop chains such as `ProxyJump bastion,inner` are honored, including nested jumps.
-- **Passwords stay in memory.** When key authentication fails you are asked once per host; the password is kept only until the app exits.
+- **Passwords stay in memory.** When key authentication fails you are asked once per host; the secret is kept only until the app exits. A passphrase that unlocks an identity file is also remembered for that file, so other hosts using the same key do not ask again. Nothing is ever written to disk. For a passphrase that survives restarts, load the key into your SSH agent (`ssh-add ~/.ssh/id_ed25519` with the OpenSSH agent running, or Pageant); the app uses agent keys automatically.
 
 ### Not yet ported
 

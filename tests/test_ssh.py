@@ -10,7 +10,8 @@ import paramiko
 import pytest
 
 from pyommyssh.core.hosts import Host
-from pyommyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError
+from pyommyssh.core.keys import KeyType, generateKeyPair
+from pyommyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError, passphraseUnlocks
 from tests.echoserver import EchoServer
 from tests.sshserver import (
     EXEC_PREFIX,
@@ -264,3 +265,16 @@ def _freePort() -> int:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return probe.getsockname()[1]
+
+
+def test_passphrase_unlocks_only_an_encrypted_key_it_opens(tmp_path: Path) -> None:
+    locked = tmp_path / "locked"
+    generateKeyPair(locked, KeyType.ED25519, "c", passphrase="right")
+    plain = tmp_path / "plain"
+    generateKeyPair(plain, KeyType.ED25519, "c", passphrase=None)
+    assert passphraseUnlocks(locked, "right")
+    assert not passphraseUnlocks(locked, "wrong")
+    assert not passphraseUnlocks(plain, "anything")
+    assert not passphraseUnlocks(tmp_path / "missing", "x")
+    (tmp_path / "garbage").write_text("not a key\n")
+    assert not passphraseUnlocks(tmp_path / "garbage", "x")

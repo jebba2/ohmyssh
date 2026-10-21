@@ -52,6 +52,9 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Cancelling the prompt shows "Password required" and the timer refresh does not prompt again
 - [ ] `F5` after cancelling prompts again
 - [ ] A wrong password prompts again
+- [ ] Two hosts sharing a passphrase-protected identity file prompt only once; the second comes Online without a prompt
+- [ ] A host whose identity file is a different passphrase-protected key still prompts
+- [ ] With the key loaded in the SSH agent (`ssh-add`), a passphrase-protected key connects without any prompt
 
 ## Terminal
 

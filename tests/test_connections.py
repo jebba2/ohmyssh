@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
+import paramiko
 import pytest
 
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host, resolveJumpChain
+from pyommyssh.core.keys import KeyType, generateKeyPair
 from pyommyssh.core.ssh import SshAuthError, SshCredentials, SshError
 from tests.sshserver import EXEC_PREFIX, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor as _host
+
+PASSPHRASE = "open sesame"
+
+
+@pytest.fixture
+def lockedKeyServer(hostKey: paramiko.PKey, tmp_path: Path) -> Iterator[tuple[TestSshServer, Path]]:
+    """A server that accepts a freshly generated, passphrase-protected key."""
+    privatePath = tmp_path / "locked_key"
+    generateKeyPair(privatePath, KeyType.ED25519, "c", passphrase=PASSPHRASE)
+    accepted = paramiko.Ed25519Key.from_private_key_file(str(privatePath), password=PASSPHRASE)
+    server = TestSshServer(hostKey, acceptedKey=accepted)
+    server.start()
+    yield server, privatePath
+    server.stop()
 
 
 def test_resolve_jump_chain_follows_comma_separated_names() -> None:
@@ -120,3 +137,68 @@ def test_pool_forget_closes_one_host(sshServer: TestSshServer, tmp_path: Path) -
     pool.forget(host.name)
     assert not client.isConnected()
     pool.closeAll()
+
+
+def test_pool_reuses_a_passphrase_for_hosts_sharing_the_identity_file(
+    lockedKeyServer: tuple[TestSshServer, Path], tmp_path: Path
+) -> None:
+    server, privatePath = lockedKeyServer
+    first = _host(server, name="first", identityFile=privatePath)
+    second = _host(server, name="second", identityFile=privatePath)
+    pool = ConnectionPool(lambda: [first, second], knownHostsPath=tmp_path / "known_hosts")
+    try:
+        with pytest.raises(SshAuthError):
+            pool.connection(first)
+        pool.setCredentials("first", SshCredentials(password=PASSPHRASE, passphrase=PASSPHRASE))
+        assert pool.connection(first).isConnected()
+        # No credentials were ever given for "second"; the key's passphrase is enough.
+        assert pool.connection(second).isConnected()
+        assert ("publickey", TEST_USER) in server.authAttempts
+    finally:
+        pool.closeAll()
+
+
+def test_pool_does_not_reuse_a_passphrase_for_a_different_identity_file(
+    lockedKeyServer: tuple[TestSshServer, Path], tmp_path: Path
+) -> None:
+    server, privatePath = lockedKeyServer
+    otherKey = tmp_path / "other_key"
+    generateKeyPair(otherKey, KeyType.ED25519, "c", passphrase="different")
+    first = _host(server, name="first", identityFile=privatePath)
+    other = _host(server, name="other", identityFile=otherKey)
+    pool = ConnectionPool(lambda: [first, other], knownHostsPath=tmp_path / "known_hosts")
+    try:
+        pool.setCredentials("first", SshCredentials(passphrase=PASSPHRASE))
+        pool.connection(first)
+        with pytest.raises(SshAuthError):
+            pool.connection(other)
+    finally:
+        pool.closeAll()
+
+
+def test_pool_does_not_remember_a_password_as_a_key_passphrase(
+    sshServer: TestSshServer, clientKeyFile: Path, tmp_path: Path
+) -> None:
+    # The key is not encrypted, so the secret that logged "first" in was a password.
+    first = _host(sshServer, name="first", identityFile=clientKeyFile)
+    pool = ConnectionPool(lambda: [first], knownHostsPath=tmp_path / "known_hosts")
+    try:
+        pool.setCredentials("first", SshCredentials(password=TEST_PASSWORD, passphrase=TEST_PASSWORD))
+        pool.connection(first)
+        assert pool.knownPassphrases() == {}
+    finally:
+        pool.closeAll()
+
+
+def test_pool_remembers_the_passphrase_by_identity_file(
+    lockedKeyServer: tuple[TestSshServer, Path], tmp_path: Path
+) -> None:
+    server, privatePath = lockedKeyServer
+    first = _host(server, name="first", identityFile=privatePath)
+    pool = ConnectionPool(lambda: [first], knownHostsPath=tmp_path / "known_hosts")
+    try:
+        pool.setCredentials("first", SshCredentials(passphrase=PASSPHRASE))
+        pool.connection(first)
+        assert pool.knownPassphrases() == {privatePath.resolve(): PASSPHRASE}
+    finally:
+        pool.closeAll()

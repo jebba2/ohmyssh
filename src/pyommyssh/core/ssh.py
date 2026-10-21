@@ -42,6 +42,35 @@ class SshCredentials:
     passphrase: str | None = None
 
 
+# Tried in turn when loading a key file, as paramiko's own client does.
+_KEY_CLASSES: tuple[type[paramiko.PKey], ...] = (paramiko.Ed25519Key, paramiko.RSAKey, paramiko.ECDSAKey)
+
+
+def passphraseUnlocks(identityFile: Path, passphrase: str) -> bool:
+    """True only if ``identityFile`` is an encrypted key that ``passphrase`` decrypts.
+
+    An unencrypted key, a wrong passphrase, or an unreadable file all give False.
+    """
+    encrypted = False
+    for keyClass in _KEY_CLASSES:
+        try:
+            keyClass.from_private_key_file(str(identityFile))
+            return False
+        except paramiko.PasswordRequiredException:
+            encrypted = True
+        except (paramiko.SSHException, OSError, ValueError):
+            continue
+    if not encrypted:
+        return False
+    for keyClass in _KEY_CLASSES:
+        try:
+            keyClass.from_private_key_file(str(identityFile), password=passphrase)
+            return True
+        except (paramiko.SSHException, OSError, ValueError):
+            continue
+    return False
+
+
 def _loadKnownHosts(client: paramiko.SSHClient, path: Path | None) -> None:
     """Load known_hosts for verification without ever writing back to it."""
     if path is not None and path.is_file():
