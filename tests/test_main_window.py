@@ -8,7 +8,8 @@ from pathlib import Path
 
 import paramiko
 import pytest
-from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtCore import QItemSelectionModel, QMimeData, QPoint, QPointF, Qt, QUrl
+from PySide6.QtGui import QDropEvent
 from pytestqt.qtbot import QtBot
 
 from pyommyssh.core.config import AppSettings
@@ -734,6 +735,106 @@ def test_refresh_relists_both_panes(
     qtbot.mouseClick(tab.refreshButton, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: tab.remotePane.names() == ["appeared.txt"], timeout=WAIT_MS)
     qtbot.waitUntil(lambda: tab.localPane.names() == ["..", "appeared.txt"], timeout=WAIT_MS)
+
+
+def _dropOn(pane: FilePane, mime: QMimeData, rowName: str | None) -> None:
+    """Drop ``mime`` on the named row, or on the empty area below the rows."""
+    if rowName is None:
+        point = QPoint(5, pane.table.viewport().height() - 2)
+    else:
+        item = pane.table.item(pane.names().index(rowName), 0)
+        assert item is not None
+        point = pane.table.visualItemRect(item).center()
+    event = QDropEvent(
+        QPointF(point), Qt.DropAction.CopyAction, mime, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    )
+    pane.table.dropEvent(event)
+
+
+def test_drag_and_drop_between_the_panes_transfers_files(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    (root / "inbox").mkdir()
+    (root / "remote.txt").write_bytes(b"from the server")
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    (localDir / "notes.txt").write_bytes(b"from the laptop")
+    (localDir / "work").mkdir()
+    (localDir / "work" / "deep.txt").write_bytes(b"deep")
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+
+    # Local entries dropped on a remote folder row land inside that folder.
+    _selectNamed(tab.localPane, "notes.txt")
+    _selectNamed(tab.localPane, "work")
+    localMime = tab.localPane.dragMimeData()
+    assert localMime is not None
+    _dropOn(tab.remotePane, localMime, "inbox")
+    qtbot.waitUntil(lambda: (root / "inbox" / "work" / "deep.txt").exists(), timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
+    assert (root / "inbox" / "notes.txt").read_bytes() == b"from the laptop"
+    assert not (root / "notes.txt").exists()
+
+    # A remote entry dropped on the local pane's empty area lands in the folder on show.
+    _selectNamed(tab.remotePane, "remote.txt")
+    remoteMime = tab.remotePane.dragMimeData()
+    assert remoteMime is not None
+    _dropOn(tab.localPane, remoteMime, None)
+    qtbot.waitUntil(lambda: (localDir / "remote.txt").exists(), timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
+
+    # Dropping back on the source pane transfers nothing.
+    qtbot.waitUntil(lambda: "remote.txt" in tab.localPane.names(), timeout=WAIT_MS)
+    _dropOn(tab.localPane, localMime, "work")
+    qtbot.wait(300)
+    assert tab.transferStrip.isHidden()
+    assert not (localDir / "work" / "notes.txt").exists()
+
+
+def test_dropping_explorer_files_uploads_them_and_refuses_roots_and_duplicates(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    dropped = tmp_path / "dropped.txt"
+    dropped.write_bytes(b"from explorer")
+    (tmp_path / "one").mkdir()
+    (tmp_path / "two").mkdir()
+    (tmp_path / "one" / "same.txt").write_bytes(b"1")
+    (tmp_path / "two" / "same.txt").write_bytes(b"2")
+    driveRoot = Path(tmp_path.anchor)
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+
+    mime = QMimeData()
+    mime.setUrls(
+        [
+            QUrl.fromLocalFile(str(dropped)),
+            QUrl.fromLocalFile(str(driveRoot)),
+            QUrl.fromLocalFile(str(tmp_path / "one" / "same.txt")),
+            QUrl.fromLocalFile(str(tmp_path / "two" / "same.txt")),
+            QUrl.fromLocalFile(str(tmp_path / "does-not-exist.txt")),
+        ]
+    )
+    _dropOn(tab.remotePane, mime, None)
+    qtbot.waitUntil(lambda: (root / "dropped.txt").exists(), timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
+    assert not (root / "same.txt").exists()
+    status = tab.statusLabel.text()
+    assert status.startswith("Not uploaded:")
+    assert str(driveRoot) in status and "same.txt" in status and "does-not-exist.txt" in status
 
 
 def test_cancel_button_stops_a_transfer(

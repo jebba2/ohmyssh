@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import posixpath
+from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -96,7 +97,8 @@ class SftpTab(QWidget):
         self._threadPool = threadPool
         self._prompts = prompts or dialogSftpPrompts(self)
         self._liveSignals: set[QObject] = set()
-        self._pendingUploads: list[tuple[Path, str]] | None = None
+        # Upload batches waiting for their existence check, oldest first.
+        self._pendingUploads: list[list[tuple[Path, str]]] = []
         self._transferLabel = ""
         self._bridge = SftpBridge(host, pool, self)
         self._bridge.connected.connect(self._onConnected)
@@ -121,9 +123,12 @@ class SftpTab(QWidget):
         self.localPane.setRoots(localRoots())
         self.localPane.navigateRequested.connect(self.listLocal)
         self.localPane.selectionChanged.connect(self._updateButtons)
+        self.localPane.entriesDropped.connect(self._onEntriesDroppedOnLocal)
         self.remotePane = FilePane(host.name)
         self.remotePane.navigateRequested.connect(self.listRemote)
         self.remotePane.selectionChanged.connect(self._updateButtons)
+        self.remotePane.entriesDropped.connect(self._onEntriesDroppedOnRemote)
+        self.remotePane.urlsDropped.connect(self._onFilesDroppedOnRemote)
 
         self.newFolderButton = QPushButton("New folder")
         self.newFolderButton.clicked.connect(self.createRemoteFolder)
@@ -291,20 +296,28 @@ class SftpTab(QWidget):
 
     def uploadSelected(self) -> None:
         """Copy the selected local items into the remote folder on show."""
-        entries = self.localPane.selectedEntries()
         remoteDir = self.remotePane.currentPath()
-        if not entries or not remoteDir:
+        pairs = [(Path(entry.path), posixpath.join(remoteDir, entry.name)) for entry in self.localPane.selectedEntries()]
+        self._startUploads(pairs)
+
+    def downloadSelected(self) -> None:
+        """Copy the selected remote items into the local folder on show."""
+        localDir = self.localPane.currentPath()
+        pairs = [(entry.path, Path(localDir) / entry.name) for entry in self.remotePane.selectedEntries()]
+        self._startDownloads(pairs)
+
+    def _startUploads(self, pairs: list[tuple[Path, str]]) -> None:
+        """Check the remote destinations, ask once if any exist, then queue the uploads."""
+        if not pairs or not self._bridge.isConnected():
             return
-        pairs = [(Path(entry.path), posixpath.join(remoteDir, entry.name)) for entry in entries]
-        self._pendingUploads = pairs
+        self._pendingUploads.append(pairs)
         self._showTransferStrip("Checking the remote folder...")
         self._bridge.checkExists([remote for _, remote in pairs])
 
     def _onExistenceChecked(self, exists: dict[str, bool]) -> None:
-        pairs = self._pendingUploads
-        self._pendingUploads = None
-        if pairs is None:
+        if not self._pendingUploads:
             return
+        pairs = self._pendingUploads.pop(0)
         clashing = [posixpath.basename(remote) for _, remote in pairs if exists.get(remote)]
         if clashing and not self._prompts.replace(clashing):
             self.transferStrip.setVisible(False)
@@ -313,19 +326,47 @@ class SftpTab(QWidget):
         for local, remote in pairs:
             self._bridge.upload(local, remote)
 
-    def downloadSelected(self) -> None:
-        """Copy the selected remote items into the local folder on show."""
-        entries = self.remotePane.selectedEntries()
-        localDir = self.localPane.currentPath()
-        if not entries or not localDir:
+    def _startDownloads(self, pairs: list[tuple[str, Path]]) -> None:
+        """Ask once if any local destination exists, then queue the downloads."""
+        if not pairs or not self._bridge.isConnected():
             return
-        pairs = [(entry.path, Path(localDir) / entry.name) for entry in entries]
-        clashing = [entry.name for entry in entries if (Path(localDir) / entry.name).exists()]
+        clashing = [local.name for _, local in pairs if local.exists()]
         if clashing and not self._prompts.replace(clashing):
             return
         self._showTransferStrip("Preparing...")
         for remote, local in pairs:
             self._bridge.download(remote, local)
+
+    # Drag and drop
+
+    def _onEntriesDroppedOnRemote(self, token: str, paths: list[str], targetDir: str) -> None:
+        if token != self.localPane.dragToken:
+            return
+        self._startUploads([(Path(path), posixpath.join(targetDir, Path(path).name)) for path in paths])
+
+    def _onEntriesDroppedOnLocal(self, token: str, paths: list[str], targetDir: str) -> None:
+        if token != self.remotePane.dragToken:
+            return
+        self._startDownloads([(path, Path(targetDir) / posixpath.basename(path)) for path in paths])
+
+    def _onFilesDroppedOnRemote(self, paths: list[str], targetDir: str) -> None:
+        """Upload files dropped from the OS, refusing drive roots, missing paths, and duplicate names."""
+        nameCounts = Counter(Path(path).name for path in paths)
+        accepted: list[Path] = []
+        refused: list[str] = []
+        for raw in paths:
+            path = Path(raw)
+            if path.parent == path:
+                refused.append(f"{path} is a drive root")
+            elif not path.exists():
+                refused.append(f"{path.name} does not exist")
+            elif nameCounts[path.name] > 1:
+                refused.append(f"{path.name} appears more than once")
+            else:
+                accepted.append(path)
+        self._startUploads([(path, posixpath.join(targetDir, path.name)) for path in accepted])
+        if refused:
+            self.showStatus("Not uploaded: " + "; ".join(refused))
 
     def _showTransferStrip(self, message: str) -> None:
         self.statusLabel.setVisible(False)

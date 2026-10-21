@@ -3,13 +3,21 @@
 The pane only shows what it is given. Whoever owns it listens for
 ``navigateRequested`` and answers with ``setEntries``, so the same widget
 serves the local disk and the remote host.
+
+Rows can be dragged out and dropped on another pane. A drag carries the
+selected paths and a token naming the pane they came from, so the owner
+can tell an upload from a download, and files dropped from the OS arrive
+as ``urlsDropped``.
 """
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
+from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
+from PySide6.QtGui import QDrag, QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -28,6 +36,7 @@ from pyommyssh.core.sftp import FileEntry
 
 PARENT_ROW_LABEL = ".."
 COLUMNS = ("Name", "Size", "Modified")
+ENTRIES_MIME_TYPE = "application/x-pyommyssh-entries"
 _SIZE_UNITS = ("B", "KB", "MB", "GB", "TB")
 
 
@@ -50,18 +59,62 @@ def formatModified(epoch: float | None) -> str:
     return datetime.fromtimestamp(epoch).strftime("%Y-%m-%d %H:%M")
 
 
+class _FileTable(QTableWidget):
+    """The pane's table; drags start from and drops land on the pane."""
+
+    def __init__(self, pane: FilePane) -> None:
+        super().__init__(0, len(COLUMNS))
+        self._pane = pane
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.viewport().setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+
+    def startDrag(self, supportedActions: Qt.DropAction) -> None:
+        mime = self._pane.dragMimeData()
+        if mime is None:
+            return
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.CopyAction)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if self._pane.acceptsDrop(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        if self._pane.acceptsDrop(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        if not self._pane.acceptsDrop(event.mimeData()):
+            event.ignore()
+            return
+        self._pane.handleDrop(event.mimeData(), event.position().toPoint())
+        event.acceptProposedAction()
+
+
 class FilePane(QWidget):
     """A titled file listing with a path bar, an Up button, and optional drive switch."""
 
     navigateRequested = Signal(str)
     fileActivated = Signal(object)
     selectionChanged = Signal()
+    entriesDropped = Signal(str, object, str)
+    urlsDropped = Signal(object, str)
 
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._path = ""
         self._parentPath: str | None = None
         self._entries: list[FileEntry] = []
+        # Names this pane in drags so a drop can tell where the rows came from.
+        self.dragToken = f"pane-{id(self)}"
 
         self.titleLabel = QLabel(title)
         self.titleLabel.setObjectName("paneTitle")
@@ -79,7 +132,7 @@ class FilePane(QWidget):
         self.statusLabel.setObjectName("paneStatus")
         self.statusLabel.setVisible(False)
 
-        self.table = QTableWidget(0, len(COLUMNS))
+        self.table = _FileTable(self)
         self.table.setHorizontalHeaderLabels(list(COLUMNS))
         self.table.verticalHeader().setVisible(False)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -171,6 +224,55 @@ class FilePane(QWidget):
         """Show why a listing failed; the previous listing stays visible."""
         self.statusLabel.setText(message)
         self.statusLabel.setVisible(True)
+
+    # Drag and drop
+
+    def dragMimeData(self) -> QMimeData | None:
+        """The payload for dragging the selected rows, or None when nothing is selected."""
+        paths = [entry.path for entry in self.selectedEntries()]
+        if not paths:
+            return None
+        mime = QMimeData()
+        mime.setData(ENTRIES_MIME_TYPE, json.dumps({"token": self.dragToken, "paths": paths}).encode("utf-8"))
+        return mime
+
+    def acceptsDrop(self, mime: QMimeData) -> bool:
+        """True for rows from another pane or files from the OS, never for our own rows."""
+        if mime.hasFormat(ENTRIES_MIME_TYPE):
+            return self._payloadOf(mime).get("token") != self.dragToken
+        return mime.hasUrls()
+
+    def dropTargetAt(self, point: QPoint) -> str:
+        """The folder a drop at ``point`` means: a folder row under it, else the folder on show."""
+        index = self.table.indexAt(point)
+        entry = self.entryAt(index.row()) if index.isValid() else None
+        if entry is not None and entry.isDir:
+            return entry.path
+        return self._path
+
+    def handleDrop(self, mime: QMimeData, point: QPoint) -> None:
+        """Turn a drop into ``entriesDropped`` or ``urlsDropped``."""
+        target = self.dropTargetAt(point)
+        if mime.hasFormat(ENTRIES_MIME_TYPE):
+            payload = self._payloadOf(mime)
+            token = str(payload.get("token", ""))
+            if token == self.dragToken:
+                return
+            rawPaths = payload.get("paths")
+            paths = [str(path) for path in rawPaths] if isinstance(rawPaths, list) else []
+            self.entriesDropped.emit(token, paths, target)
+            return
+        localPaths = [str(Path(url.toLocalFile())) for url in mime.urls() if url.isLocalFile()]
+        if localPaths:
+            self.urlsDropped.emit(localPaths, target)
+
+    @staticmethod
+    def _payloadOf(mime: QMimeData) -> dict[str, object]:
+        try:
+            payload = json.loads(bytes(mime.data(ENTRIES_MIME_TYPE).data()).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
 
     # Internals
 
