@@ -154,6 +154,11 @@ QLabel#paneStatus {
     color: #ffd79a;
     font-size: 11px;
 }
+QWidget#transferStrip {
+    background: #232329;
+    border: 1px solid #3a3a44;
+    border-radius: 4px;
+}
 QSplitter::handle {
     background: #2a2a30;
     width: 6px;

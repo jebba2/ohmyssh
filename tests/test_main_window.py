@@ -8,7 +8,7 @@ from pathlib import Path
 
 import paramiko
 import pytest
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QItemSelectionModel, Qt
 from pytestqt.qtbot import QtBot
 
 from pyommyssh.core.config import AppSettings
@@ -16,8 +16,10 @@ from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource, HostStore
 from pyommyssh.core.keys import KeyType, generateKeyPair, readPublicKey
 from pyommyssh.core.tunnel import TunnelState, TunnelStatus
+from pyommyssh.ui.filePane import FilePane
 from pyommyssh.ui.keyGenerateDialog import KeyGenerateRequest
 from pyommyssh.ui.mainWindow import MainWindow
+from pyommyssh.ui.sftpTab import SftpTab
 from tests.echoserver import EchoServer
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor
 
@@ -551,6 +553,123 @@ def test_open_sftp_tab_lists_both_sides_and_navigates(
     window.closeTab(1)
     qtbot.waitUntil(lambda: window.tabs.count() == 1, timeout=WAIT_MS)
     assert window.sftpTabs() == []
+
+
+def _openSftpTab(
+    qtbot: QtBot, window: MainWindow, host: Host, localDir: Path
+) -> SftpTab:
+    window.openSftp(host)
+    tab = window.sftpTabs()[0]
+    qtbot.waitUntil(lambda: tab.remotePane.currentPath() == "/", timeout=WAIT_MS)
+    tab.localPane.navigateRequested.emit(str(localDir))
+    qtbot.waitUntil(lambda: tab.localPane.currentPath() == str(localDir), timeout=WAIT_MS)
+    return tab
+
+
+def _selectNamed(pane: FilePane, name: str) -> None:
+    """Add the named row to the selection, as a Ctrl+click would."""
+    row = pane.names().index(name)
+    index = pane.table.model().index(row, 0)
+    pane.table.selectionModel().select(
+        index, QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows
+    )
+
+
+def test_upload_and_download_buttons_move_files_and_show_progress(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    (root / "remote.txt").write_bytes(b"from the server")
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    (localDir / "notes.txt").write_bytes(b"from the laptop")
+    (localDir / "work").mkdir()
+    (localDir / "work" / "deep.txt").write_bytes(b"deep")
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    assert not tab.uploadButton.isEnabled()
+    assert tab.transferStrip.isHidden()
+
+    _selectNamed(tab.localPane, "notes.txt")
+    _selectNamed(tab.localPane, "work")
+    assert tab.uploadButton.isEnabled()
+    qtbot.mouseClick(tab.uploadButton, Qt.MouseButton.LeftButton)
+    assert not tab.transferStrip.isHidden()
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: tab.remotePane.names() == ["work", "notes.txt", "remote.txt"], timeout=WAIT_MS)
+    assert (root / "notes.txt").read_bytes() == b"from the laptop"
+    assert (root / "work" / "deep.txt").read_bytes() == b"deep"
+
+    _selectNamed(tab.remotePane, "remote.txt")
+    assert tab.downloadButton.isEnabled()
+    qtbot.mouseClick(tab.downloadButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: "remote.txt" in tab.localPane.names(), timeout=WAIT_MS)
+    assert (localDir / "remote.txt").read_bytes() == b"from the server"
+
+
+def test_replacing_files_asks_once_per_batch(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    (root / "a.txt").write_bytes(b"old a")
+    (root / "b.txt").write_bytes(b"old b")
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    (localDir / "a.txt").write_bytes(b"new a")
+    (localDir / "b.txt").write_bytes(b"new b")
+    (localDir / "c.txt").write_bytes(b"new c")
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    asked: list[list[str]] = []
+    answers = [False, True]
+    window = _window(qtbot, store, tmp_path)
+    window.replacePrompt = lambda names: (asked.append(names), answers.pop(0))[1]
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+
+    for name in ("a.txt", "b.txt", "c.txt"):
+        _selectNamed(tab.localPane, name)
+    qtbot.mouseClick(tab.uploadButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: len(asked) == 1, timeout=WAIT_MS)
+    assert asked[0] == ["a.txt", "b.txt"]
+    qtbot.wait(300)
+    assert (root / "a.txt").read_bytes() == b"old a"
+    assert not (root / "c.txt").exists()
+
+    qtbot.mouseClick(tab.uploadButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: len(asked) == 2, timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: (root / "c.txt").exists() and tab.transferStrip.isHidden(), timeout=WAIT_MS)
+    assert (root / "a.txt").read_bytes() == b"new a"
+
+
+def test_cancel_button_stops_a_transfer(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    (localDir / "huge.bin").write_bytes(b"\x00" * (16 * 1024 * 1024))
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    _selectNamed(tab.localPane, "huge.bin")
+    qtbot.mouseClick(tab.uploadButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.transferBar.value() > 0, timeout=WAIT_MS)
+    qtbot.mouseClick(tab.cancelButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.statusLabel.text() == "Transfer cancelled", timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
+    assert not (_sftpRoot(sftpServer) / "huge.bin").exists()
 
 
 def test_sftp_tab_prompts_for_a_password(

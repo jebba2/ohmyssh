@@ -9,16 +9,20 @@ queued delivery.
 from __future__ import annotations
 
 import logging
+import posixpath
 import queue
 import threading
 from collections.abc import Callable
+from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal
 
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host
-from pyommyssh.core.sftp import SftpError, SftpSession
+from pyommyssh.core.sftp import ProgressCallback, SftpError, SftpSession, TransferCancelled, TransferResult
 from pyommyssh.core.ssh import SshAuthError, SshError
+
+TransferRun = Callable[[SftpSession, ProgressCallback], TransferResult]
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,10 @@ class WorkQueueThread(QThread):
                 self._queue.get_nowait()
             except queue.Empty:
                 return
+
+    def pendingCount(self) -> int:
+        """How many callables are waiting to run."""
+        return self._queue.qsize()
 
     def stop(self) -> None:
         """Finish the running callable, drop the rest, and end the thread."""
@@ -72,6 +80,13 @@ class SftpBridge(QObject):
     listFailed = Signal(str, str)
     operationDone = Signal(str)
     operationFailed = Signal(str)
+    existenceChecked = Signal(object)
+    transferStarted = Signal(str)
+    transferProgress = Signal(object)
+    transferFinished = Signal(str, object)
+    transferFailed = Signal(str, str)
+    transferCancelled = Signal()
+    transfersIdle = Signal()
 
     def __init__(self, host: Host, pool: ConnectionPool, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -111,6 +126,29 @@ class SftpBridge(QObject):
         self._browse.submit(
             lambda: self._operate(lambda s: s.rename(source, destination), f"Renamed {source} to {destination}")
         )
+
+    def checkExists(self, paths: list[str]) -> None:
+        """Report which remote paths exist, as a dict, through ``existenceChecked``."""
+        self._browse.submit(lambda: self._checkExists(paths))
+
+    def upload(self, local: Path, remote: str) -> None:
+        """Queue an upload of a local file or folder to the remote path."""
+        label = f"Uploading {local.name}"
+        self._transfer.submit(
+            lambda: self._runTransfer(label, lambda session, onProgress: session.upload(local, remote, onProgress, self._cancel))
+        )
+
+    def download(self, remote: str, local: Path) -> None:
+        """Queue a download of a remote file or folder to the local path."""
+        label = f"Downloading {posixpath.basename(remote)}"
+        self._transfer.submit(
+            lambda: self._runTransfer(label, lambda session, onProgress: session.download(remote, local, onProgress, self._cancel))
+        )
+
+    def cancelTransfers(self) -> None:
+        """Stop the running transfer at its next chunk and drop the queued ones."""
+        self._transfer.clearPending()
+        self._cancel.set()
 
     def shutdown(self) -> None:
         """Stop both threads and close the session. Safe to call repeatedly."""
@@ -153,6 +191,40 @@ class SftpBridge(QObject):
             self.listFailed.emit(path, str(error))
             return
         self.listed.emit(path, entries)
+
+    def _checkExists(self, paths: list[str]) -> None:
+        session = self._session
+        if session is None:
+            self.existenceChecked.emit({path: False for path in paths})
+            return
+        exists: dict[str, bool] = {}
+        for path in paths:
+            try:
+                exists[path] = session.stat(path) is not None
+            except SftpError:
+                exists[path] = False
+        self.existenceChecked.emit(exists)
+
+    def _runTransfer(self, label: str, run: TransferRun) -> None:
+        # A cancel that came before this transfer started already emptied the queue.
+        self._cancel.clear()
+        session = self._session
+        try:
+            if session is None:
+                self.transferFailed.emit(label, "Not connected")
+                return
+            self.transferStarted.emit(label)
+            try:
+                result = run(session, self.transferProgress.emit)
+            except TransferCancelled:
+                self.transferCancelled.emit()
+            except (SftpError, SshError) as error:
+                self.transferFailed.emit(label, str(error))
+            else:
+                self.transferFinished.emit(label, result)
+        finally:
+            if self._transfer.pendingCount() == 0:
+                self.transfersIdle.emit()
 
     def _operate(self, operation: Callable[[SftpSession], None], doneMessage: str) -> None:
         session = self._session

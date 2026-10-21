@@ -126,6 +126,14 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] On Windows the local pane has a drive switch that lists every drive and changes the listing; on a single-root system there is none
 - [ ] A host that needs a password prompts once; cancelling shows "Password required" above the panes
 - [ ] An unreachable host shows "Could not reach ..." above the panes
+- [ ] Upload and Download are disabled until something is selected on their side and the host is connected
+- [ ] Selecting a file and a folder on the left and pressing Upload shows the strip ("Checking the remote folder...", then the file name with bytes and "n/m files"), then both appear on the right with the folder's contents intact
+- [ ] Selecting items on the right and pressing Download copies them into the local folder on show
+- [ ] Uploading over existing files asks "Replace N item(s)?" once, listing the names; No leaves the server untouched, Yes replaces them
+- [ ] Uploading a large file shows a moving progress bar; Cancel removes the partial file on the server, shows "Transfer cancelled", and drops any queued transfers
+- [ ] Opening a remote folder while a transfer runs shows "Loading..." then the folder
+- [ ] A transfer that skips an item (for example a symlink in a folder) finishes and shows "skipped 1 item(s)" with the reason above the panes
+- [ ] Closing the tab mid-transfer stops the transfer
 - [ ] `Ctrl+K` lists the SFTP tab as "<host> (files, tab N)" and Enter switches to it
 - [ ] Closing the tab closes its SFTP channels (two fewer sessions in the server's log)
 
