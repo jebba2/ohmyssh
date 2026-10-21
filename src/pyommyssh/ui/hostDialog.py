@@ -40,7 +40,13 @@ def _nonBlankLines(edit: QPlainTextEdit) -> list[str]:
 
 
 class HostDialog(QDialog):
-    """Collects the fields of a Host and validates them before accepting."""
+    """Collects the fields of a Host and validates them before accepting.
+
+    ``exec`` returns ``Accepted``, ``Rejected``, or ``DELETE`` when the user
+    asked for the host to be removed or hidden instead.
+    """
+
+    DELETE = 2
 
     def __init__(
         self,
@@ -98,6 +104,16 @@ class HostDialog(QDialog):
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
+        isConfigHost = host is not None and host.source == HostSource.SSH_CONFIG
+        self.deleteButton = QPushButton("Hide host" if isConfigHost else "Remove host")
+        self.deleteButton.setToolTip(
+            "Hide this host from the dashboard; ~/.ssh/config is not changed"
+            if isConfigHost
+            else "Delete this host from hosts.toml"
+        )
+        self.deleteButton.clicked.connect(lambda: self.done(self.DELETE))
+        buttons.addButton(self.deleteButton, QDialogButtonBox.ButtonRole.DestructiveRole)
+        self.deleteButton.setVisible(host is not None)
         form.addRow(buttons)
 
         if host is not None:

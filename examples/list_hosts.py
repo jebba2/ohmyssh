@@ -15,7 +15,7 @@ def main() -> None:
     paths = AppPaths.default()
     store = HostStore(paths.hostsFile)
     store.load()
-    hosts = mergeHosts(loadSshConfig(), store.hosts())
+    hosts = mergeHosts(loadSshConfig(), store.hosts(), store.hiddenNames())
     if not hosts:
         print("No hosts found. Add some in ~/.ssh/config or through the app.")
         return

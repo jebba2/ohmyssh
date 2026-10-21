@@ -6,6 +6,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 
 - **Hosts from your SSH config.** `~/.ssh/config` is read at startup, including `Include` files and `ProxyJump`. It is never written to.
 - **App-managed hosts.** Add, edit, and remove hosts inside the app with the pencil button on each card. They are stored separately in `hosts.toml`. Editing a host that came from `~/.ssh/config` saves an app-managed copy that overrides it; the config file itself is left alone.
+- **Removing hosts.** The Edit host dialog and the card's right-click menu both offer it. A host you added is deleted from `hosts.toml`. A host from `~/.ssh/config` is hidden from the dashboard instead, since that file is never rewritten; its name goes into `hidden_hosts` in `hosts.toml`, and removing it from that list brings the host back.
 - **Live dashboard.** Every host is a card with CPU, RAM, and disk bars, OS name, uptime, load average, a Docker badge with the running container count, and the top three processes. Bars turn yellow at 60% and red at 85%. Cards refresh on a timer and can be grouped by tag.
 - **Real terminals.** Click the terminal button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
@@ -90,7 +91,7 @@ remote_forwards = ["9000:127.0.0.1:3000"]
 dynamic_forwards = ["1080"]
 ```
 
-A host here with the same name as one in `~/.ssh/config` takes precedence.
+A host here with the same name as one in `~/.ssh/config` takes precedence. A top-level `hidden_hosts = ["name", ...]` list keeps those SSH config hosts off the dashboard.
 
 The three forward lists are optional. A local forward listens on this machine and the server connects onward to `host:hostport`. A remote forward makes the server listen and this machine connects onward. A dynamic forward listens on this machine as a SOCKS proxy and takes only `[bind_address:]port`. Without a bind address a forward listens on loopback only; `*` means every interface. IPv6 addresses go in brackets, as in `[::1]:8080:localhost:80`.
 

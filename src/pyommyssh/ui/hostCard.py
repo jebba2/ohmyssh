@@ -245,6 +245,6 @@ class HostCard(QFrame):
         menu.addAction("Install SSH key...", lambda: self.installKeyRequested.emit(self.host))
         if self.host.hasForwards():
             menu.addAction(self.tunnelButton.text(), self._toggleTunnel)
-        if self.host.source == HostSource.APP:
-            menu.addAction("Remove host", lambda: self.removeRequested.emit(self.host))
+        removeLabel = "Remove host" if self.host.source == HostSource.APP else "Hide host"
+        menu.addAction(removeLabel, lambda: self.removeRequested.emit(self.host))
         menu.exec(event.globalPos())

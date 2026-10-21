@@ -249,6 +249,36 @@ def test_host_store_skips_invalid_stored_forwards(tmp_path: Path) -> None:
     assert [f.spec() for f in store.hosts()[0].forwards] == ["8080:localhost:80"]
 
 
+def test_host_store_hides_and_unhides_names(tmp_path: Path) -> None:
+    storePath = tmp_path / "hosts.toml"
+    store = HostStore(storePath)
+    store.add(Host(name="mine", hostname="m.local"))
+    store.hide("cfg-box")
+    store.hide("cfg-box")
+    store.save()
+    with storePath.open("rb") as handle:
+        assert tomllib.load(handle)["hidden_hosts"] == ["cfg-box"]
+
+    reloaded = HostStore(storePath)
+    reloaded.load()
+    assert reloaded.hiddenNames() == {"cfg-box"}
+    assert [h.name for h in reloaded.hosts()] == ["mine"]
+    reloaded.unhide("cfg-box")
+    reloaded.unhide("never-hidden")
+    reloaded.save()
+    assert "hidden_hosts" not in storePath.read_text()
+
+
+def test_merge_hosts_drops_hidden_ssh_config_hosts_but_never_app_hosts() -> None:
+    fromConfig = [
+        Host(name="hidden", hostname="h.local", source=HostSource.SSH_CONFIG),
+        Host(name="shown", hostname="s.local", source=HostSource.SSH_CONFIG),
+    ]
+    fromApp = [Host(name="mine", hostname="m.local", source=HostSource.APP)]
+    merged = mergeHosts(fromConfig, fromApp, hidden={"hidden", "mine"})
+    assert [h.name for h in merged] == ["shown", "mine"]
+
+
 def test_host_has_forwards() -> None:
     assert not Host(name="a", hostname="a.local").hasForwards()
     forward = PortForward.parse(ForwardKind.DYNAMIC, "1080")

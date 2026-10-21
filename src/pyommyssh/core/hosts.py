@@ -272,15 +272,28 @@ def _hostFromToml(data: dict[str, object]) -> Host:
 
 
 class HostStore:
-    """Hosts added inside the app, persisted to a TOML file."""
+    """Hosts added inside the app, plus the names of SSH config hosts to hide, in one TOML file."""
 
     def __init__(self, path: Path) -> None:
         self._path = path
         self._hosts: list[Host] = []
+        self._hiddenNames: set[str] = set()
 
     def hosts(self) -> list[Host]:
         """Return a copy of the stored hosts."""
         return list(self._hosts)
+
+    def hiddenNames(self) -> set[str]:
+        """Names of SSH config hosts the user removed from the dashboard."""
+        return set(self._hiddenNames)
+
+    def hide(self, name: str) -> None:
+        """Keep an SSH config host off the dashboard; the config file itself is never touched."""
+        self._hiddenNames.add(name)
+
+    def unhide(self, name: str) -> None:
+        """Show a hidden SSH config host again. Unknown names are ignored."""
+        self._hiddenNames.discard(name)
 
     def find(self, name: str) -> Host | None:
         """Return the host with this name, or None."""
@@ -314,12 +327,17 @@ class HostStore:
         with self._path.open("rb") as handle:
             data = tomllib.load(handle)
         self._hosts = [_hostFromToml(entry) for entry in data.get("hosts", [])]
+        rawHidden = data.get("hidden_hosts")
+        self._hiddenNames = {str(name) for name in rawHidden} if isinstance(rawHidden, list) else set()
 
     def save(self) -> None:
-        """Write hosts to disk, creating the parent directory if needed."""
+        """Write hosts and hidden names to disk, creating the parent directory if needed."""
+        document: dict[str, object] = {"hosts": [_hostToToml(h) for h in self._hosts]}
+        if self._hiddenNames:
+            document["hidden_hosts"] = sorted(self._hiddenNames)
         self._path.parent.mkdir(parents=True, exist_ok=True)
         with self._path.open("wb") as handle:
-            tomli_w.dump({"hosts": [_hostToToml(h) for h in self._hosts]}, handle)
+            tomli_w.dump(document, handle)
 
 
 def resolveJumpChain(host: Host, hosts: list[Host]) -> list[Host]:
@@ -348,9 +366,14 @@ def resolveJumpChain(host: Host, hosts: list[Host]) -> list[Host]:
     return expand(host)
 
 
-def mergeHosts(fromSshConfig: list[Host], fromApp: list[Host]) -> list[Host]:
-    """Combine both host sources; an app host with the same name wins."""
+def mergeHosts(fromSshConfig: list[Host], fromApp: list[Host], hidden: set[str] | None = None) -> list[Host]:
+    """Combine both host sources; an app host with the same name wins.
+
+    SSH config hosts named in ``hidden`` are left out. App hosts are never
+    hidden; removing one deletes it instead.
+    """
+    hiddenNames = hidden or set()
     appByName = {h.name: h for h in fromApp}
-    merged = [appByName.pop(h.name, h) for h in fromSshConfig]
+    merged = [appByName.pop(h.name, h) for h in fromSshConfig if h.name not in hiddenNames or h.name in appByName]
     merged.extend(h for h in fromApp if h.name in appByName)
     return merged

@@ -97,6 +97,27 @@ def test_validation_blocks_accept(qtbot: QtBot) -> None:
     assert dialog.result() == QDialog.DialogCode.Accepted
 
 
+def test_delete_button_only_when_editing_and_names_the_action(qtbot: QtBot) -> None:
+    adding = HostDialog(existingNames=set())
+    qtbot.addWidget(adding)
+    assert adding.deleteButton.isHidden()
+
+    appHost = Host(name="mine", hostname="m.local", source=HostSource.APP)
+    editingApp = HostDialog(host=appHost, existingNames={"mine"})
+    qtbot.addWidget(editingApp)
+    assert not editingApp.deleteButton.isHidden()
+    assert editingApp.deleteButton.text() == "Remove host"
+    editingApp.deleteButton.click()
+    assert editingApp.result() == HostDialog.DELETE
+
+    configHost = Host(name="cfg", hostname="c.local", source=HostSource.SSH_CONFIG)
+    editingConfig = HostDialog(host=configHost, existingNames={"cfg"})
+    qtbot.addWidget(editingConfig)
+    assert editingConfig.deleteButton.text() == "Hide host"
+    editingConfig.deleteButton.click()
+    assert editingConfig.result() == HostDialog.DELETE
+
+
 def test_forward_fields_build_rules_in_kind_order(qtbot: QtBot) -> None:
     dialog = HostDialog(existingNames=set())
     qtbot.addWidget(dialog)

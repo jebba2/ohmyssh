@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+import tomllib
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -206,6 +207,44 @@ def test_add_edit_remove_host(
     window.removeHost(Host(name="renamed", hostname="r.local"))
     assert [h.name for h in window.hosts()] == ["cfg"]
     assert _storedNames(tmp_path) == []
+
+
+def test_removing_an_ssh_config_host_hides_it_and_keeps_the_config_file(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    configHost = Host(name="cfg", hostname="c.local", source=HostSource.SSH_CONFIG)
+    other = Host(name="other", hostname="o.local", source=HostSource.SSH_CONFIG)
+    window = _window(qtbot, store, tmp_path, sshConfigHosts=[configHost, other])
+    windows.append(window)
+    assert [h.name for h in window.hosts()] == ["cfg", "other"]
+
+    window.removeHost(configHost)
+    assert [h.name for h in window.hosts()] == ["other"]
+    assert window.dashboard.cardFor("cfg") is None
+    with (tmp_path / "hosts.toml").open("rb") as handle:
+        assert tomllib.load(handle)["hidden_hosts"] == ["cfg"]
+    assert _storedNames(tmp_path) == []
+
+    # A fresh window built from the same store keeps the host hidden.
+    reloaded = HostStore(tmp_path / "hosts.toml")
+    reloaded.load()
+    again = _window(qtbot, reloaded, tmp_path, sshConfigHosts=[configHost, other])
+    windows.append(again)
+    assert [h.name for h in again.hosts()] == ["other"]
+
+
+def test_removal_prompt_text_differs_for_config_and_app_hosts(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    appText = window.removalQuestion(Host(name="mine", hostname="m", source=HostSource.APP))
+    configText = window.removalQuestion(Host(name="cfg", hostname="c", source=HostSource.SSH_CONFIG))
+    assert appText == "Remove 'mine'? Its settings are deleted from hosts.toml."
+    assert configText == (
+        "Hide 'cfg'? It comes from ~/.ssh/config, which is never changed; it is only hidden from the "
+        "dashboard. To bring it back, remove it from hidden_hosts in hosts.toml."
+    )
 
 
 def test_editing_an_ssh_config_host_saves_an_overriding_app_host(

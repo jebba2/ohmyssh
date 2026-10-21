@@ -155,7 +155,7 @@ class MainWindow(QMainWindow):
 
     def hosts(self) -> list[Host]:
         """Return every known host: SSH config first, then app-managed ones."""
-        return mergeHosts(self._sshConfigHosts, self._hostStore.hosts())
+        return mergeHosts(self._sshConfigHosts, self._hostStore.hosts(), self._hostStore.hiddenNames())
 
     def _hostNamed(self, name: str) -> Host | None:
         return next((host for host in self.hosts() if host.name == name), None)
@@ -186,8 +186,15 @@ class MainWindow(QMainWindow):
             self.startTunnel(host)
 
     def removeHost(self, host: Host) -> None:
-        """Delete a stored host, stop its tunnel, and close its connection."""
-        self._hostStore.remove(host.name)
+        """Take a host off the dashboard, stop its tunnel, and close its connection.
+
+        App-managed hosts are deleted from hosts.toml. Hosts from
+        ~/.ssh/config are only hidden, since that file is never rewritten.
+        """
+        if self._hostStore.find(host.name) is not None:
+            self._hostStore.remove(host.name)
+        else:
+            self._hostStore.hide(host.name)
         self._hostStore.save()
         self.tunnels.stop(host.name)
         self._pool.forget(host.name)
@@ -215,13 +222,26 @@ class MainWindow(QMainWindow):
     def _editHostDialog(self, host: Host) -> None:
         names = {candidate.name for candidate in self.hosts()}
         dialog = HostDialog(host=host, existingNames=names, parent=self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
+        result = dialog.exec()
+        if result == QDialog.DialogCode.Accepted:
             edited = dialog.host()
             self.applyEdit(host, edited)
             self.refreshHost(edited)
+        elif result == HostDialog.DELETE:
+            self._confirmRemove(host)
+
+    def removalQuestion(self, host: Host) -> str:
+        """The confirmation asked before a host is removed or hidden."""
+        if host.source == HostSource.APP:
+            return f"Remove '{host.name}'? Its settings are deleted from hosts.toml."
+        return (
+            f"Hide '{host.name}'? It comes from ~/.ssh/config, which is never changed; it is only hidden "
+            "from the dashboard. To bring it back, remove it from hidden_hosts in hosts.toml."
+        )
 
     def _confirmRemove(self, host: Host) -> None:
-        answer = QMessageBox.question(self, "Remove host", f"Remove '{host.name}'?")
+        title = "Remove host" if host.source == HostSource.APP else "Hide host"
+        answer = QMessageBox.question(self, title, self.removalQuestion(host))
         if answer == QMessageBox.StandardButton.Yes:
             self.removeHost(host)
 

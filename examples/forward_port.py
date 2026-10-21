@@ -57,7 +57,7 @@ def main() -> int:
     paths = AppPaths.default()
     store = HostStore(paths.hostsFile)
     store.load()
-    hosts = mergeHosts(loadSshConfig(), store.hosts())
+    hosts = mergeHosts(loadSshConfig(), store.hosts(), store.hiddenNames())
     host = next((candidate for candidate in hosts if candidate.name == name), None)
     if host is None:
         print(f"No host named '{name}'. Known hosts: {', '.join(h.name for h in hosts)}")
