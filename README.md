@@ -10,6 +10,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Real terminals.** Click the terminal button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
 - **Port forwarding.** Each host can carry local (`ssh -L`), remote (`ssh -R`), and dynamic SOCKS (`ssh -D`) forwards, in OpenSSH's `[bind_address:]port:host:hostport` notation. `LocalForward`, `RemoteForward`, and `DynamicForward` lines in `~/.ssh/config` are picked up, and app-managed hosts edit theirs in the host dialog. The card lists a host's forwards with a Start/Stop tunnel button and a status line. One tunnel per host carries every forward; it binds its local ports up front, reconnects with a backoff when the connection drops, and keeps the ports while it does. SOCKS4, SOCKS4a, and SOCKS5 without authentication are accepted on dynamic forwards.
+- **Generate a key pair.** `Ctrl+G` or the Generate key button asks for the key type (Ed25519 by default, or RSA 4096), a comment, where to save the private key (defaulting to `~/.ssh/id_ed25519`), and an optional passphrase. The files are written in OpenSSH format, the private key with mode 600 and the public key beside it as `.pub`. Existing files are never overwritten. When a host asks for a secret, the one you type is tried both as the login password and as the key's passphrase, so a passphrase-protected key works with the same single prompt.
 - **Install a public key.** The key button beside a host's name picks a `.pub` file from `~/.ssh` and appends it to the host's `~/.ssh/authorized_keys` over the existing connection, the way `ssh-copy-id` does. The key is added only if it is not already there, the directory is set to 700 and the file to 600, and nothing else on the server is touched. The outcome shows in the status bar. The private key never leaves your machine.
 - **One connection per host.** The dashboard poll, every terminal tab, the tunnel, and key installs share a single SSH connection to each host.
 - **ProxyJump.** Multi-hop chains such as `ProxyJump bastion,inner` are honored, including nested jumps.
@@ -17,7 +18,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 
 ### Not yet ported
 
-SFTP (Phase 2), snippets, streamer mode, and themes (Phase 3). Upstream's full key setup, which generates a new key and turns off password login on the server, is not ported; only installing an existing public key is. Tunnels do not start on their own when the app opens; each is started from its card. Metrics are gathered with Linux commands first and fall back to macOS forms for CPU, processes, and OS; `free` is Linux-only so RAM shows "n/a" on macOS hosts. Unknown host keys are accepted and logged; a changed host key is rejected. Text selection and copy in the terminal are not implemented yet.
+SFTP (Phase 2), snippets, streamer mode, and themes (Phase 3). Upstream's key setup also turns off password login on the server after verifying the key; that part is not ported, and the app never edits `sshd_config`. Tunnels do not start on their own when the app opens; each is started from its card. Metrics are gathered with Linux commands first and fall back to macOS forms for CPU, processes, and OS; `free` is Linux-only so RAM shows "n/a" on macOS hosts. Unknown host keys are accepted and logged; a changed host key is rejected. Text selection and copy in the terminal are not implemented yet.
 
 ## Setup
 
@@ -49,6 +50,7 @@ uv run python -m pyommyssh
 | `Ctrl+N` | Add host |
 | `F5` | Refresh every host now, including hosts whose password prompt was cancelled |
 | `Ctrl+K` | Search hosts and open sessions |
+| `Ctrl+G` | Generate an SSH key pair |
 | `Ctrl+Shift+V`, `Shift+Insert` | Paste into the terminal |
 | Mouse wheel | Scroll the terminal back through history |
 
@@ -113,10 +115,11 @@ Runnable scripts that use the core library without the GUI:
 uv run python examples/list_hosts.py          # print every known host
 uv run python examples/probe_host.py myhost   # connect and print dashboard metrics
 uv run python examples/forward_port.py myhost -L 8080:localhost:80   # run a tunnel until Ctrl+C
+uv run python examples/generate_key.py ~/.ssh/id_ed25519             # write a new key pair
 uv run python examples/install_key.py myhost ~/.ssh/id_ed25519.pub   # append a public key to authorized_keys
 ```
 
-`forward_port.py` uses the host's own forwards when none are given on the command line, and takes any mix of `-L`, `-R`, and `-D` rules otherwise. `install_key.py` defaults to `~/.ssh/id_ed25519.pub` when no key file is given.
+`forward_port.py` uses the host's own forwards when none are given on the command line, and takes any mix of `-L`, `-R`, and `-D` rules otherwise. `generate_key.py` makes an Ed25519 key unless given `--rsa`, and asks for a passphrase when given `--passphrase`. `install_key.py` defaults to `~/.ssh/id_ed25519.pub` when no key file is given.
 
 ## Development
 

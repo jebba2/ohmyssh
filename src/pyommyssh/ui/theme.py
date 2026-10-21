@@ -131,7 +131,7 @@ QLabel#terminalStatus {
 QLabel#errorLabel {
     color: #ff8a8a;
 }
-QLineEdit, QSpinBox, QListWidget, QPlainTextEdit {
+QLineEdit, QSpinBox, QListWidget, QPlainTextEdit, QComboBox {
     background: #141417;
     color: #e0e0e0;
     border: 1px solid #3a3a44;

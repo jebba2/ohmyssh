@@ -24,15 +24,16 @@ from PySide6.QtWidgets import (
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host, HostSource, HostStore, mergeHosts
-from pyommyssh.core.keys import readPublicKey
+from pyommyssh.core.keys import KeyGenerateRequest, readPublicKey
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
 from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
 from pyommyssh.ui.dashboard import DashboardView
 from pyommyssh.ui.hostDialog import HostDialog
+from pyommyssh.ui.keyGenerateDialog import KeyGenerateDialog
 from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
 from pyommyssh.ui.terminalTab import TerminalTab
-from pyommyssh.ui.workers import KeyInstallWorker, MetricsWorker, TunnelSignals
+from pyommyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, TunnelSignals
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def askPasswordWithDialog(parent: QWidget) -> PasswordPrompt:
         text, accepted = QInputDialog.getText(
             parent,
             "Password",
-            f"Password for {host.displayAddress()}",
+            f"Password or key passphrase for {host.displayAddress()}",
             QLineEdit.EchoMode.Password,
         )
         return text if accepted and text else None
@@ -133,7 +134,17 @@ class MainWindow(QMainWindow):
         self.searchAction.setShortcut(QKeySequence("Ctrl+K"))
         self.searchAction.triggered.connect(self.showSearch)
 
-        for action in (self.addHostAction, self.refreshAction, self.groupByTagAction, self.searchAction):
+        self.generateKeyAction = QAction("Generate key", self)
+        self.generateKeyAction.setShortcut(QKeySequence("Ctrl+G"))
+        self.generateKeyAction.triggered.connect(self._generateKeyDialog)
+
+        for action in (
+            self.addHostAction,
+            self.refreshAction,
+            self.groupByTagAction,
+            self.searchAction,
+            self.generateKeyAction,
+        ):
             toolbar.addAction(action)
 
     # Hosts
@@ -213,14 +224,18 @@ class MainWindow(QMainWindow):
     # Credentials
 
     def _promptCredentials(self, host: Host) -> bool:
-        """Ask for a password once; a cancelled prompt is remembered."""
+        """Ask for a secret once; a cancelled prompt is remembered.
+
+        The same secret is offered as the login password and as the identity
+        file's passphrase, so one prompt covers both kinds of host.
+        """
         if host.name in self._authDeclined:
             return False
-        password = self._passwordPrompt(host)
-        if password is None:
+        secret = self._passwordPrompt(host)
+        if secret is None:
             self._authDeclined.add(host.name)
             return False
-        self._pool.setCredentials(host.name, SshCredentials(password=password))
+        self._pool.setCredentials(host.name, SshCredentials(password=secret, passphrase=secret))
         return True
 
     # Metrics
@@ -266,6 +281,36 @@ class MainWindow(QMainWindow):
             self.dashboard.showError(name, PASSWORD_REQUIRED)
 
     # SSH keys
+
+    def _generateKeyDialog(self) -> None:
+        dialog = KeyGenerateDialog(parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.generateKey(dialog.request())
+
+    def generateKey(self, request: KeyGenerateRequest) -> None:
+        """Write a new key pair in the background and report where it landed."""
+        worker = KeyGenerateWorker(request)
+        signals = worker.signals
+        self._liveSignals.add(signals)
+        signals.generated.connect(self._onKeyGenerated)
+        signals.failed.connect(self._onKeyGenerateFailed)
+        for signal in (signals.generated, signals.failed):
+            signal.connect(lambda *_, s=signals: self._liveSignals.discard(s))
+        self._threadPool.start(worker)
+
+    def _onKeyGenerated(self, privatePath: Path, publicPath: Path) -> None:
+        if self._shuttingDown:
+            return
+        message = f"Generated {privatePath.name} and {publicPath.name} in {privatePath.parent}"
+        logger.info(message)
+        self.statusBar().showMessage(message)
+
+    def _onKeyGenerateFailed(self, problem: str) -> None:
+        if self._shuttingDown:
+            return
+        message = f"Could not generate key: {problem}"
+        logger.warning(message)
+        self.statusBar().showMessage(message)
 
     def _installKeyDialog(self, host: Host) -> None:
         startDir = str(Path.home() / ".ssh")

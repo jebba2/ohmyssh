@@ -15,6 +15,7 @@ import getpass
 import os
 import re
 import socket
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -43,6 +44,16 @@ class KeyType(Enum):
 
     ED25519 = "ed25519"
     RSA = "rsa"
+
+
+@dataclass(frozen=True)
+class KeyGenerateRequest:
+    """Everything ``generateKeyPair`` needs, as collected from the user."""
+
+    privatePath: Path
+    keyType: KeyType
+    comment: str
+    passphrase: str | None
 
 
 def defaultKeyFileName(keyType: KeyType) -> str:

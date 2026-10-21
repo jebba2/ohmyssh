@@ -10,7 +10,9 @@ from pytestqt.qtbot import QtBot
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.ui.workers import KeyInstallWorker, MetricsWorker, ShellOpener, TerminalReader
+from pyommyssh.core.keys import KeyType, readPublicKey
+from pyommyssh.ui.keyGenerateDialog import KeyGenerateRequest
+from pyommyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, ShellOpener, TerminalReader
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TestSshServer, hostFor
 
 PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxkZXN0cmlwcGVkLWZha2Uta2V5LWJ5dGVzLWhlcmUx jeb@laptop"
@@ -113,6 +115,20 @@ def test_key_install_worker_reports_outcome(
         QThreadPool.globalInstance().start(worker)
     assert failedBlocker.args == ["box", "Unexpected reply from the server: garbage"]
     pool.closeAll()
+
+
+def test_key_generate_worker_writes_the_pair(qtbot: QtBot, tmp_path: Path) -> None:
+    request = KeyGenerateRequest(tmp_path / "id_ed25519", KeyType.ED25519, "c", None)
+    worker = KeyGenerateWorker(request)
+    with qtbot.waitSignal(worker.signals.generated, timeout=10000) as blocker:
+        QThreadPool.globalInstance().start(worker)
+    assert blocker.args == [tmp_path / "id_ed25519", tmp_path / "id_ed25519.pub"]
+    assert readPublicKey(tmp_path / "id_ed25519.pub").endswith(" c")
+
+    worker = KeyGenerateWorker(request)
+    with qtbot.waitSignal(worker.signals.failed, timeout=10000) as failedBlocker:
+        QThreadPool.globalInstance().start(worker)
+    assert failedBlocker.args == [f"{tmp_path / 'id_ed25519'} already exists"]
 
 
 def test_key_install_worker_reports_auth_required(

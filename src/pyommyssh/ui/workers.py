@@ -7,7 +7,7 @@ from PySide6.QtCore import QObject, QRunnable, QThread, Signal
 
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host
-from pyommyssh.core.keys import KeyInstallError, installPublicKey
+from pyommyssh.core.keys import KeyGenerateRequest, KeyInstallError, generateKeyPair, installPublicKey
 from pyommyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
 from pyommyssh.core.ssh import SshAuthError, SshError
 
@@ -79,6 +79,31 @@ class KeyInstallWorker(QRunnable):
             self.signals.failed.emit(self.host.name, str(error))
             return
         self.signals.installed.emit(self.host.name, newlyAdded)
+
+
+class KeyGenerateSignals(QObject):
+    """Outcome of generating a key pair, delivered on the GUI thread."""
+
+    generated = Signal(object, object)
+    failed = Signal(str)
+
+
+class KeyGenerateWorker(QRunnable):
+    """Writes a new key pair; RSA generation takes long enough to keep off the GUI thread."""
+
+    def __init__(self, request: KeyGenerateRequest) -> None:
+        super().__init__()
+        self._request = request
+        self.signals = KeyGenerateSignals()
+
+    def run(self) -> None:
+        request = self._request
+        try:
+            publicPath = generateKeyPair(request.privatePath, request.keyType, request.comment, request.passphrase)
+        except (OSError, ValueError) as error:
+            self.signals.failed.emit(str(error))
+            return
+        self.signals.generated.emit(request.privatePath, publicPath)
 
 
 class ShellSignals(QObject):

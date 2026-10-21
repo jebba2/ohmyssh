@@ -73,8 +73,16 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] A chain `ProxyJump a,b` and a nested jump (b itself has a ProxyJump) both work
 - [ ] A ProxyJump naming an unknown host shows an error mentioning that name
 
-## SSH key install
+## SSH keys
 
+- [ ] `Ctrl+G` and the Generate key toolbar button open "Generate SSH key" with Ed25519 selected and Save as pointing at `~/.ssh/id_ed25519`
+- [ ] Switching the type to RSA 4096 changes Save as to `~/.ssh/id_rsa`; a path you typed yourself is left alone
+- [ ] Browse... opens a save dialog and fills Save as with the chosen path
+- [ ] Mismatched passphrases show "Passphrases do not match"; a path whose private or `.pub` file exists shows "... already exists"
+- [ ] OK shows "Generated id_ed25519 and id_ed25519.pub in ..." in the status bar; `ssh-keygen -y -f ~/.ssh/id_ed25519` prints the same key as the `.pub` file
+- [ ] An RSA key takes a moment but the window stays responsive while it is generated
+- [ ] A key generated with a passphrase prompts for it on first connect; typing the passphrase into the prompt brings the card Online
+- [ ] The prompt title reads "Password or key passphrase for user@host"
 - [ ] Every card has a key button beside the pencil; hovering shows "Install SSH key"; right-click offers "Install SSH key..."
 - [ ] Clicking it opens a file picker in `~/.ssh` filtered to `*.pub`
 - [ ] Choosing a public key on a host that can log in shows "Installed <file> on <host>" in the status bar, and `cat ~/.ssh/authorized_keys` on the server ends with that key
@@ -134,5 +142,6 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [x] `uv run python examples/probe_host.py` with no argument prints usage
 - [x] `uv run python examples/forward_port.py` with no argument prints usage; a bad `-L` rule prints "Bad rule: ..." and exits 2
 - [ ] `uv run python examples/forward_port.py <host> -L 18080:localhost:80` prints the rule, "connecting", "up", and `curl http://127.0.0.1:18080/` works until Ctrl+C prints "Stopping"
+- [x] `uv run python examples/generate_key.py` with no argument prints usage; `generate_key.py <tmp>/k` writes `k` and `k.pub`, and running it again prints "already exists" and exits 1
 - [x] `uv run python examples/install_key.py` with no argument prints usage; a private key file prints "is a private key" and exits 2
 - [ ] `uv run python examples/install_key.py <host> ~/.ssh/id_rsa.pub` prints "Installed ..." the first time and "already" the second

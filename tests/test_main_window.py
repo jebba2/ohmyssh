@@ -6,6 +6,7 @@ import socket
 from collections.abc import Iterator
 from pathlib import Path
 
+import paramiko
 import pytest
 from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
@@ -13,10 +14,12 @@ from pytestqt.qtbot import QtBot
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource, HostStore
+from pyommyssh.core.keys import KeyType, generateKeyPair, readPublicKey
 from pyommyssh.core.tunnel import TunnelState, TunnelStatus
+from pyommyssh.ui.keyGenerateDialog import KeyGenerateRequest
 from pyommyssh.ui.mainWindow import MainWindow
 from tests.echoserver import EchoServer
-from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TestSshServer, hostFor
+from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor
 
 WAIT_MS = 10000
 
@@ -452,6 +455,51 @@ def test_install_key_reports_a_server_failure(
         "bash: authorized_keys: Permission denied",
         timeout=WAIT_MS,
     )
+
+
+def test_generate_key_writes_files_and_reports(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    assert window.generateKeyAction.text() == "Generate key"
+    keyDir = tmp_path / "keys"
+    window.generateKey(KeyGenerateRequest(keyDir / "id_ed25519", KeyType.ED25519, "me@here", None))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage() == f"Generated id_ed25519 and id_ed25519.pub in {keyDir}",
+        timeout=WAIT_MS,
+    )
+    assert readPublicKey(keyDir / "id_ed25519.pub").endswith(" me@here")
+
+    window.generateKey(KeyGenerateRequest(keyDir / "id_ed25519", KeyType.ED25519, "me@here", None))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage()
+        == f"Could not generate key: {keyDir / 'id_ed25519'} already exists",
+        timeout=WAIT_MS,
+    )
+
+
+def test_password_prompt_also_unlocks_a_passphrase_protected_key(
+    qtbot: QtBot, hostKey: paramiko.PKey, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    privatePath = tmp_path / "locked_key"
+    generateKeyPair(privatePath, KeyType.ED25519, "c", passphrase="open sesame")
+    accepted = paramiko.Ed25519Key.from_private_key_file(str(privatePath), password="open sesame")
+    server = TestSshServer(hostKey, acceptedKey=accepted)
+    server.start()
+    try:
+        store.add(hostFor(server, identityFile=privatePath))
+        prompts: list[str] = []
+        window = _window(qtbot, store, tmp_path, prompts=prompts, answer="open sesame")
+        windows.append(window)
+        card = window.dashboard.cardFor("box")
+        assert card is not None
+        window.refreshAll()
+        qtbot.waitUntil(lambda: card.statusLabel.text() == "Online", timeout=WAIT_MS)
+        assert prompts == ["box"]
+        assert ("publickey", TEST_USER) in server.authAttempts
+    finally:
+        server.stop()
 
 
 def test_shutdown_stops_tunnels(
