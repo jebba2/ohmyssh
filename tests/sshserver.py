@@ -24,6 +24,7 @@ from paramiko.common import (
 )
 
 from pyommyssh.core.hosts import Host
+from tests.sftpserver import DirectorySftpServer
 
 TEST_USER = "tester"
 TEST_PASSWORD = "secret"
@@ -222,9 +223,15 @@ class TestSshServer:
 
     __test__ = False  # Not a pytest test class despite the name.
 
-    def __init__(self, hostKey: paramiko.PKey, acceptedKey: paramiko.PKey | None = None) -> None:
+    def __init__(
+        self, hostKey: paramiko.PKey, acceptedKey: paramiko.PKey | None = None, sftpRoot: Path | None = None
+    ) -> None:
         self.hostKey = hostKey
         self.acceptedKey = acceptedKey
+        # When set, an SFTP subsystem serves this directory as "/".
+        self.sftpRoot = sftpRoot
+        # Files with these names are refused with "permission denied" over SFTP.
+        self.sftpRefusedNames: set[str] = set()
         self.authAttempts: list[tuple[str, str]] = []
         self.commands: list[str] = []
         self.ptyRequests: list[tuple[str, int, int]] = []
@@ -276,6 +283,11 @@ class TestSshServer:
                 return
             transport = paramiko.Transport(client)
             transport.add_server_key(self.hostKey)
+            if self.sftpRoot is not None:
+                transport.set_subsystem_handler(
+                    "sftp", paramiko.SFTPServer, DirectorySftpServer,
+                    root=self.sftpRoot, refusedNames=self.sftpRefusedNames,
+                )
             handler = _Handler(self)
             handler.transport = transport
             try:

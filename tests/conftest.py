@@ -46,6 +46,17 @@ def sshServer(hostKey: paramiko.PKey, clientKey: paramiko.PKey) -> Iterator[Test
 
 
 @pytest.fixture
+def sftpServer(hostKey: paramiko.PKey, clientKey: paramiko.PKey, tmp_path: Path) -> Iterator[TestSshServer]:
+    """A test SSH server whose SFTP subsystem serves ``tmp_path/remote`` as ``/``."""
+    root = tmp_path / "remote"
+    root.mkdir()
+    server = TestSshServer(hostKey, acceptedKey=clientKey, sftpRoot=root)
+    server.start()
+    yield server
+    server.stop()
+
+
+@pytest.fixture
 def jumpServer(hostKey: paramiko.PKey, clientKey: paramiko.PKey) -> Iterator[TestSshServer]:
     """A second server that acts as a ProxyJump bastion."""
     server = TestSshServer(hostKey, acceptedKey=clientKey)

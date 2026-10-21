@@ -228,6 +228,14 @@ class SshClient:
         except (paramiko.SSHException, OSError) as error:
             raise SshError(f"Command failed on {self.host.name}: {error}") from error
 
+    def openSftp(self) -> paramiko.SFTPClient:
+        """Open an SFTP channel on this connection."""
+        client = self._requireClient()
+        try:
+            return client.open_sftp()
+        except (paramiko.SSHException, OSError) as error:
+            raise SshError(f"Could not open SFTP on {self.host.name}: {error}") from error
+
     def openShell(self, cols: int, rows: int, term: str = DEFAULT_TERM) -> paramiko.Channel:
         """Open an interactive shell with a PTY of the given size."""
         client = self._requireClient()
