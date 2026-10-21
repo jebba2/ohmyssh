@@ -14,8 +14,22 @@ from pathlib import Path
 
 import tomli_w
 
+from pyommyssh.core.forwards import ForwardKind, PortForward
+
 # Include directives deeper than this are ignored, matching OmnySSH.
 MAX_INCLUDE_DEPTH = 3
+
+# SSH config keyword and hosts.toml key for each forward kind.
+_FORWARD_DIRECTIVES = {
+    "localforward": ForwardKind.LOCAL,
+    "remoteforward": ForwardKind.REMOTE,
+    "dynamicforward": ForwardKind.DYNAMIC,
+}
+_FORWARD_TOML_KEYS = {
+    ForwardKind.LOCAL: "local_forwards",
+    ForwardKind.REMOTE: "remote_forwards",
+    ForwardKind.DYNAMIC: "dynamic_forwards",
+}
 
 
 class HostSource(Enum):
@@ -36,7 +50,12 @@ class Host:
     identityFile: Path | None = None
     proxyJump: str | None = None
     tags: list[str] = field(default_factory=list)
+    forwards: list[PortForward] = field(default_factory=list)
     source: HostSource = HostSource.SSH_CONFIG
+
+    def hasForwards(self) -> bool:
+        """Return True when the host defines at least one port forward."""
+        return bool(self.forwards)
 
     def displayAddress(self) -> str:
         """Return a compact user@host:port string, omitting defaults."""
@@ -89,6 +108,23 @@ def _applyDirective(hosts: list[Host], keyword: str, value: str, home: Path) -> 
             host.identityFile = _expandHome(value, home)
         elif keyword == "proxyjump":
             host.proxyJump = value
+        elif keyword in _FORWARD_DIRECTIVES:
+            forward = _parseForwardDirective(_FORWARD_DIRECTIVES[keyword], value)
+            if forward is not None:
+                host.forwards.append(forward)
+
+
+def _parseForwardDirective(kind: ForwardKind, value: str) -> PortForward | None:
+    """Turn ``LocalForward 8080 localhost:80`` style arguments into a rule.
+
+    OpenSSH separates the listen and destination parts with whitespace; the
+    rule notation joins them with a colon. Unix socket paths and other forms
+    we cannot serve are skipped.
+    """
+    try:
+        return PortForward.parse(kind, ":".join(value.split()))
+    except ValueError:
+        return None
 
 
 def _includePatterns(value: str) -> list[str]:
@@ -196,7 +232,26 @@ def _hostToToml(host: Host) -> dict[str, object]:
         data["proxy_jump"] = host.proxyJump
     if host.tags:
         data["tags"] = list(host.tags)
+    for kind, key in _FORWARD_TOML_KEYS.items():
+        specs = [forward.spec() for forward in host.forwards if forward.kind == kind]
+        if specs:
+            data[key] = specs
     return data
+
+
+def _forwardsFromToml(data: dict[str, object]) -> list[PortForward]:
+    """Read the three forward lists; entries that do not parse are skipped."""
+    forwards: list[PortForward] = []
+    for kind, key in _FORWARD_TOML_KEYS.items():
+        rawSpecs = data.get(key)
+        if not isinstance(rawSpecs, list):
+            continue
+        for spec in rawSpecs:
+            try:
+                forwards.append(PortForward.parse(kind, str(spec)))
+            except ValueError:
+                continue
+    return forwards
 
 
 def _hostFromToml(data: dict[str, object]) -> Host:
@@ -211,6 +266,7 @@ def _hostFromToml(data: dict[str, object]) -> Host:
         identityFile=Path(str(identity)) if identity else None,
         proxyJump=str(data["proxy_jump"]) if data.get("proxy_jump") else None,
         tags=tags,
+        forwards=_forwardsFromToml(data),
         source=HostSource.APP,
     )
 

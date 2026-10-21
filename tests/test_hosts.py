@@ -1,9 +1,11 @@
 """Tests for SSH config parsing and the app-managed host store."""
 
+import tomllib
 from pathlib import Path
 
 import pytest
 
+from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import (
     Host,
     HostSource,
@@ -177,3 +179,77 @@ def test_host_display_address() -> None:
     assert Host(name="x", hostname="h", user="u", port=22).displayAddress() == "u@h"
     assert Host(name="x", hostname="h", port=2200).displayAddress() == "h:2200"
     assert Host(name="x", hostname="h", user="u", port=2200).displayAddress() == "u@h:2200"
+
+
+def test_parse_forward_directives(tmp_path: Path) -> None:
+    text = """
+Host web
+    LocalForward 8080 localhost:80
+    LocalForward 127.0.0.1:5432 db.internal:5432
+    RemoteForward 9000 127.0.0.1:3000
+    DynamicForward 1080
+    DynamicForward 0.0.0.0:1081
+    LocalForward /tmp/sock localhost:80
+    LocalForward notaport localhost:80
+"""
+    hosts = parseSshConfig(text, home=tmp_path)
+    assert [(f.kind, f.spec()) for f in hosts[0].forwards] == [
+        (ForwardKind.LOCAL, "8080:localhost:80"),
+        (ForwardKind.LOCAL, "127.0.0.1:5432:db.internal:5432"),
+        (ForwardKind.REMOTE, "9000:127.0.0.1:3000"),
+        (ForwardKind.DYNAMIC, "1080"),
+        (ForwardKind.DYNAMIC, "0.0.0.0:1081"),
+    ]
+
+
+def test_forward_directives_attach_to_each_host_on_the_line(tmp_path: Path) -> None:
+    hosts = parseSshConfig("Host one two\n    LocalForward 8080 localhost:80\n", home=tmp_path)
+    assert all(len(host.forwards) == 1 for host in hosts)
+    assert hosts[0].forwards is not hosts[1].forwards
+
+
+def test_host_store_round_trips_forwards(tmp_path: Path) -> None:
+    storePath = tmp_path / "hosts.toml"
+    store = HostStore(storePath)
+    host = Host(
+        name="web",
+        hostname="web.local",
+        forwards=[
+            PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80"),
+            PortForward.parse(ForwardKind.REMOTE, "9000:127.0.0.1:3000"),
+            PortForward.parse(ForwardKind.DYNAMIC, "1080"),
+        ],
+    )
+    store.add(host)
+    store.save()
+    with storePath.open("rb") as handle:
+        written = tomllib.load(handle)["hosts"][0]
+    assert written["local_forwards"] == ["8080:localhost:80"]
+    assert written["remote_forwards"] == ["9000:127.0.0.1:3000"]
+    assert written["dynamic_forwards"] == ["1080"]
+
+    reloaded = HostStore(storePath)
+    reloaded.load()
+    assert reloaded.hosts()[0].forwards == host.forwards
+
+
+def test_host_store_omits_empty_forward_lists(tmp_path: Path) -> None:
+    storePath = tmp_path / "hosts.toml"
+    store = HostStore(storePath)
+    store.add(Host(name="a", hostname="a.local"))
+    store.save()
+    assert "forwards" not in storePath.read_text()
+
+
+def test_host_store_skips_invalid_stored_forwards(tmp_path: Path) -> None:
+    storePath = tmp_path / "hosts.toml"
+    storePath.write_text('[[hosts]]\nname = "a"\nhostname = "a.local"\nlocal_forwards = ["bad", "8080:localhost:80"]\n')
+    store = HostStore(storePath)
+    store.load()
+    assert [f.spec() for f in store.hosts()[0].forwards] == ["8080:localhost:80"]
+
+
+def test_host_has_forwards() -> None:
+    assert not Host(name="a", hostname="a.local").hasForwards()
+    forward = PortForward.parse(ForwardKind.DYNAMIC, "1080")
+    assert Host(name="a", hostname="a.local", forwards=[forward]).hasForwards()
