@@ -1,8 +1,9 @@
 """A minimal in-process SSH server for exercising the real SSH client.
 
 It accepts one password user and one public key, answers exec requests with
-a canned reply, echoes shell input, and proxies direct-tcpip channels so
-ProxyJump can be tested end to end without mocks.
+a canned reply, echoes shell input, proxies direct-tcpip channels so
+ProxyJump and local forwards can be tested end to end, and serves
+tcpip-forward requests by really listening on the requested port.
 """
 
 from __future__ import annotations
@@ -13,6 +14,13 @@ from pathlib import Path
 from typing import Any
 
 import paramiko
+from paramiko.common import (
+    AUTH_FAILED,
+    AUTH_SUCCESSFUL,
+    OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED,
+    OPEN_FAILED_CONNECT_FAILED,
+    OPEN_SUCCEEDED,
+)
 
 from pyommyssh.core.hosts import Host
 
@@ -60,25 +68,28 @@ class _Handler(paramiko.ServerInterface):
     def __init__(self, server: TestSshServer) -> None:
         self._server = server
         self._shellChannels: list[paramiko.Channel] = []
+        # Set by the accept loop before the handshake starts.
+        self.transport: paramiko.Transport | None = None
+        self._remoteListeners: dict[tuple[str, int], socket.socket] = {}
 
     def check_auth_password(self, username: str, password: str) -> int:
         self._server.authAttempts.append(("password", username))
         if username == TEST_USER and password == TEST_PASSWORD:
-            return paramiko.AUTH_SUCCESSFUL
-        return paramiko.AUTH_FAILED
+            return AUTH_SUCCESSFUL
+        return AUTH_FAILED
 
     def check_auth_publickey(self, username: str, key: paramiko.PKey) -> int:
         self._server.authAttempts.append(("publickey", username))
         if username == TEST_USER and self._server.acceptedKey is not None:
             if key.get_base64() == self._server.acceptedKey.get_base64():
-                return paramiko.AUTH_SUCCESSFUL
-        return paramiko.AUTH_FAILED
+                return AUTH_SUCCESSFUL
+        return AUTH_FAILED
 
     def get_allowed_auths(self, username: str) -> str:
         return "password,publickey"
 
     def check_channel_request(self, kind: str, chanid: int) -> int:
-        return paramiko.OPEN_SUCCEEDED if kind == "session" else paramiko.OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
+        return OPEN_SUCCEEDED if kind == "session" else OPEN_FAILED_ADMINISTRATIVELY_PROHIBITED
 
     def check_channel_exec_request(self, channel: paramiko.Channel, command: bytes) -> bool:
         text = command.decode()
@@ -129,14 +140,61 @@ class _Handler(paramiko.ServerInterface):
         return True
 
     def check_port_forward_request(self, address: str, port: int) -> int:
-        return 0
+        """Listen on the requested port and open a forwarded-tcpip channel per connection.
+
+        Every bind address is treated as loopback so tests never open a port
+        on a real interface. Returns the port, or False to refuse.
+        """
+        self._server.remoteForwardRequests.append((address, port))
+        if self._server.refuseRemoteForwards:
+            return False
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            listener.bind(("127.0.0.1", port))
+        except OSError:
+            listener.close()
+            return False
+        listener.listen(5)
+        listener.settimeout(0.2)
+        self._remoteListeners[(address, port)] = listener
+        threading.Thread(
+            target=self._serveRemoteForward, args=(listener, (address, port)), daemon=True
+        ).start()
+        return port
+
+    def cancel_port_forward_request(self, address: str, port: int) -> None:
+        self._server.cancelledRemoteForwards.append((address, port))
+        listener = self._remoteListeners.pop((address, port), None)
+        if listener is not None:
+            listener.close()
+
+    def _serveRemoteForward(self, listener: socket.socket, serverAddress: tuple[str, int]) -> None:
+        while True:
+            try:
+                connection, peer = listener.accept()
+            except socket.timeout:
+                if self.transport is None or not self.transport.is_active():
+                    listener.close()
+                    return
+                continue
+            except OSError:
+                return
+            assert self.transport is not None
+            try:
+                channel = self.transport.open_forwarded_tcpip_channel(peer, serverAddress)
+            except paramiko.SSHException:
+                connection.close()
+                continue
+            _pipeSockets(channel, connection)
 
     def check_channel_direct_tcpip_request(
         self, chanid: int, origin: tuple[str, int], destination: tuple[str, int]
     ) -> int:
         self._server.directTcpipRequests.append(destination)
+        if self._server.refuseDirectTcpip:
+            return OPEN_FAILED_CONNECT_FAILED
         self._server.forwardDestinations[chanid] = destination
-        return paramiko.OPEN_SUCCEEDED
+        return OPEN_SUCCEEDED
 
 
 def hostFor(
@@ -170,6 +228,10 @@ class TestSshServer:
         self.windowChanges: list[tuple[int, int]] = []
         self.directTcpipRequests: list[tuple[str, int]] = []
         self.forwardDestinations: dict[int, tuple[str, int]] = {}
+        self.remoteForwardRequests: list[tuple[str, int]] = []
+        self.cancelledRemoteForwards: list[tuple[str, int]] = []
+        self.refuseDirectTcpip = False
+        self.refuseRemoteForwards = False
         self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._listener.bind(("127.0.0.1", 0))
@@ -204,6 +266,7 @@ class TestSshServer:
             transport = paramiko.Transport(client)
             transport.add_server_key(self.hostKey)
             handler = _Handler(self)
+            handler.transport = transport
             try:
                 transport.start_server(server=handler)
             except (paramiko.SSHException, EOFError, OSError):

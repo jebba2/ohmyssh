@@ -12,6 +12,7 @@ import pytest
 # Widget tests must not need a display; this has to be set before Qt loads.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from tests.echoserver import EchoServer
 from tests.sshserver import TestSshServer
 
 
@@ -48,6 +49,15 @@ def sshServer(hostKey: paramiko.PKey, clientKey: paramiko.PKey) -> Iterator[Test
 def jumpServer(hostKey: paramiko.PKey, clientKey: paramiko.PKey) -> Iterator[TestSshServer]:
     """A second server that acts as a ProxyJump bastion."""
     server = TestSshServer(hostKey, acceptedKey=clientKey)
+    server.start()
+    yield server
+    server.stop()
+
+
+@pytest.fixture
+def echoServer() -> Iterator[EchoServer]:
+    """A plain TCP echo service for the far end of a port forward."""
+    server = EchoServer()
     server.start()
     yield server
     server.stop()

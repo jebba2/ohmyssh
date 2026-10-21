@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import socket
+import threading
 from pathlib import Path
 
 import paramiko
@@ -9,6 +11,7 @@ import pytest
 
 from pyommyssh.core.hosts import Host
 from pyommyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError
+from tests.echoserver import EchoServer
 from tests.sshserver import (
     EXEC_PREFIX,
     SHELL_BANNER,
@@ -136,7 +139,6 @@ def test_open_shell_requests_pty_and_echoes(sshServer: TestSshServer, tmp_path: 
         assert _readUntil(channel, b"ls\r").endswith(b"ls\r")
 
         channel.resize_pty(width=120, height=40)
-        _readUntil  # the resize is acknowledged asynchronously by the server
         channel.sendall(b"x")
         _readUntil(channel, b"x")
         assert sshServer.windowChanges == [(120, 40)]
@@ -172,3 +174,93 @@ def test_close_is_idempotent(sshServer: TestSshServer, tmp_path: Path) -> None:
     client.close()
     client.close()
     assert not client.isConnected()
+
+
+def test_open_direct_tcpip_channel_reaches_a_service(
+    sshServer: TestSshServer, echoServer: EchoServer, tmp_path: Path
+) -> None:
+    client = SshClient(
+        _hostFor(sshServer),
+        credentials=SshCredentials(password=TEST_PASSWORD),
+        knownHostsPath=tmp_path / "known_hosts",
+    )
+    client.connect()
+    try:
+        channel = client.openDirectTcpip(("127.0.0.1", echoServer.port), ("10.1.1.1", 4444))
+        channel.sendall(b"ping")
+        assert _readUntil(channel, b"ping") == b"ping"
+        channel.close()
+        assert sshServer.directTcpipRequests[-1] == ("127.0.0.1", echoServer.port)
+    finally:
+        client.close()
+
+
+def test_open_direct_tcpip_to_unreachable_destination_raises(
+    sshServer: TestSshServer, tmp_path: Path
+) -> None:
+    sshServer.refuseDirectTcpip = True
+    client = SshClient(
+        _hostFor(sshServer),
+        credentials=SshCredentials(password=TEST_PASSWORD),
+        knownHostsPath=tmp_path / "known_hosts",
+    )
+    client.connect()
+    try:
+        with pytest.raises(SshError, match="box could not reach 127.0.0.1:1"):
+            client.openDirectTcpip(("127.0.0.1", 1), ("127.0.0.1", 0))
+    finally:
+        client.close()
+
+
+def test_remote_forward_delivers_server_side_connections(
+    sshServer: TestSshServer, tmp_path: Path
+) -> None:
+    client = SshClient(
+        _hostFor(sshServer),
+        credentials=SshCredentials(password=TEST_PASSWORD),
+        knownHostsPath=tmp_path / "known_hosts",
+    )
+    client.connect()
+    received: list[tuple[paramiko.Channel, tuple[str, int], tuple[str, int]]] = []
+    arrived = threading.Event()
+
+    def handler(channel: paramiko.Channel, origin: tuple[str, int], server: tuple[str, int]) -> None:
+        received.append((channel, origin, server))
+        channel.sendall(b"hello from the client side")
+        arrived.set()
+
+    try:
+        port = _freePort()
+        client.requestRemoteForward("localhost", port, handler)
+        assert ("localhost", port) in sshServer.remoteForwardRequests
+        with socket.create_connection(("127.0.0.1", port), timeout=5) as connection:
+            assert arrived.wait(5)
+            assert connection.recv(1024) == b"hello from the client side"
+        assert received[0][2] == ("localhost", port)
+        client.cancelRemoteForward("localhost", port)
+        assert ("localhost", port) in sshServer.cancelledRemoteForwards
+        with pytest.raises(OSError):
+            socket.create_connection(("127.0.0.1", port), timeout=1).close()
+    finally:
+        client.close()
+
+
+def test_remote_forward_refused_by_server_raises(sshServer: TestSshServer, tmp_path: Path) -> None:
+    sshServer.refuseRemoteForwards = True
+    client = SshClient(
+        _hostFor(sshServer),
+        credentials=SshCredentials(password=TEST_PASSWORD),
+        knownHostsPath=tmp_path / "known_hosts",
+    )
+    client.connect()
+    try:
+        with pytest.raises(SshError, match="box refused to listen on localhost:9999"):
+            client.requestRemoteForward("localhost", 9999, lambda *_: None)
+    finally:
+        client.close()
+
+
+def _freePort() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]

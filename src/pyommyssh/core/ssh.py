@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import socket
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,10 @@ from pyommyssh.core.hosts import Host
 logger = logging.getLogger(__name__)
 
 DEFAULT_TERM = "xterm-256color"
+
+Address = tuple[str, int]
+# Called with the channel, the connecting peer, and the server-side address it reached.
+ForwardedConnectionHandler = Callable[[paramiko.Channel, Address, Address], None]
 
 
 class SshError(Exception):
@@ -85,20 +90,53 @@ class SshClient:
 
     def _openTunnel(self, destination: Host, timeout: float) -> paramiko.Channel:
         """Open a direct-tcpip channel from this hop to the next one."""
+        return self.openDirectTcpip((destination.hostname, destination.port), ("127.0.0.1", 0), timeout)
+
+    def _requireTransport(self) -> paramiko.Transport:
         transport = self._requireClient().get_transport()
         if transport is None:
             raise SshError(f"No transport to {self.host.name}")
+        return transport
+
+    def openDirectTcpip(
+        self, destination: Address, origin: Address, timeout: float = 10.0
+    ) -> paramiko.Channel:
+        """Ask the server to connect to ``destination`` and return the channel carrying it.
+
+        ``origin`` is reported to the server as where the connection came
+        from, as ``ssh -L`` does.
+        """
+        transport = self._requireTransport()
         try:
-            return transport.open_channel(
-                "direct-tcpip",
-                (destination.hostname, destination.port),
-                ("127.0.0.1", 0),
-                timeout=timeout,
-            )
+            return transport.open_channel("direct-tcpip", destination, origin, timeout=timeout)
         except paramiko.SSHException as error:
             raise SshError(
-                f"Jump host {self.host.name} could not reach {destination.displayAddress()}: {error}"
+                f"{self.host.name} could not reach {destination[0]}:{destination[1]}: {error}"
             ) from error
+
+    def requestRemoteForward(self, address: str, port: int, handler: ForwardedConnectionHandler) -> None:
+        """Make the server listen on ``address:port`` and hand each connection to ``handler``.
+
+        The handler runs on paramiko's transport thread, so it must return
+        quickly and move any blocking work elsewhere.
+        """
+        transport = self._requireTransport()
+        try:
+            transport.request_port_forward(address, port, handler)
+        except paramiko.SSHException as error:
+            raise SshError(f"{self.host.name} refused to listen on {address}:{port}: {error}") from error
+
+    def cancelRemoteForward(self, address: str, port: int) -> None:
+        """Stop a remote forward. Nothing happens if the connection is already gone."""
+        if not self.isConnected() or self._client is None:
+            return
+        transport = self._client.get_transport()
+        if transport is None:
+            return
+        try:
+            transport.cancel_port_forward(address, port)
+        except (paramiko.SSHException, OSError, EOFError):
+            logger.debug("Could not cancel remote forward %s:%s on %s", address, port, self.host.name)
 
     def _openSocket(self, timeout: float) -> socket.socket:
         """Open the TCP socket ourselves so it can be closed on any failure."""
