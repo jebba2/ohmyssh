@@ -5,8 +5,10 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
 
+from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource
 from pyommyssh.core.metrics import HostMetrics, ProcessInfo
+from pyommyssh.core.tunnel import TunnelState, TunnelStatus
 from pyommyssh.ui.hostCard import HostCard, usageLevel
 
 METRICS = HostMetrics(
@@ -138,6 +140,64 @@ def test_usage_level_thresholds() -> None:
     assert usageLevel(84.9) == "warn"
     assert usageLevel(85) == "critical"
     assert usageLevel(100) == "critical"
+
+
+def _forwardingHost() -> Host:
+    return Host(
+        name="web",
+        hostname="10.0.0.5",
+        forwards=[
+            PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80"),
+            PortForward.parse(ForwardKind.DYNAMIC, "1080"),
+        ],
+    )
+
+
+def test_card_without_forwards_hides_the_tunnel_controls(qtbot: QtBot) -> None:
+    card = HostCard(_host())
+    qtbot.addWidget(card)
+    assert card.forwardsLabel.isHidden()
+    assert card.tunnelStatusLabel.isHidden()
+    assert card.tunnelButton.isHidden()
+
+
+def test_card_lists_forwards_and_offers_to_start_the_tunnel(qtbot: QtBot) -> None:
+    card = HostCard(_forwardingHost())
+    qtbot.addWidget(card)
+    assert card.forwardsLabel.text() == "L 8080 -> localhost:80\nD 1080 (SOCKS)"
+    assert not card.forwardsLabel.isHidden()
+    assert card.tunnelStatusLabel.text() == "Tunnel off"
+    assert card.tunnelButton.text() == "Start tunnel"
+    with qtbot.waitSignal(card.startTunnelRequested) as blocker:
+        qtbot.mouseClick(card.tunnelButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [_forwardingHost()]
+
+
+def test_tunnel_status_drives_label_and_button(qtbot: QtBot) -> None:
+    card = HostCard(_forwardingHost())
+    qtbot.addWidget(card)
+    card.setTunnelStatus(TunnelStatus(TunnelState.CONNECTING))
+    assert card.tunnelStatusLabel.text() == "Tunnel connecting..."
+    assert card.tunnelButton.text() == "Stop tunnel"
+    card.setTunnelStatus(TunnelStatus(TunnelState.UP))
+    assert card.tunnelStatusLabel.text() == "Tunnel active"
+    assert card.tunnelStatusLabel.property("tunnelState") == "up"
+    with qtbot.waitSignal(card.stopTunnelRequested) as blocker:
+        qtbot.mouseClick(card.tunnelButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [_forwardingHost()]
+
+    card.setTunnelStatus(TunnelStatus(TunnelState.RETRYING, "connection lost"))
+    assert card.tunnelStatusLabel.text() == "Tunnel reconnecting: connection lost"
+    assert card.tunnelButton.text() == "Stop tunnel"
+    card.setTunnelStatus(TunnelStatus(TunnelState.FAILED, "Could not listen on 127.0.0.1:8080"))
+    assert card.tunnelStatusLabel.text() == "Tunnel failed: Could not listen on 127.0.0.1:8080"
+    assert card.tunnelStatusLabel.property("tunnelState") == "failed"
+    assert card.tunnelButton.text() == "Start tunnel"
+    card.setTunnelStatus(TunnelStatus(TunnelState.AUTH_REQUIRED, "Authentication failed"))
+    assert card.tunnelStatusLabel.text() == "Tunnel: password required"
+    card.setTunnelStatus(TunnelStatus(TunnelState.STOPPED))
+    assert card.tunnelStatusLabel.text() == "Tunnel off"
+    assert card.tunnelButton.text() == "Start tunnel"
 
 
 def test_bars_carry_usage_level_property(qtbot: QtBot) -> None:

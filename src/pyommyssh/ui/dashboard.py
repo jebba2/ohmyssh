@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QGridLayout, QLabel, QScrollArea, QWidget
 
 from pyommyssh.core.hosts import Host
 from pyommyssh.core.metrics import HostMetrics
+from pyommyssh.core.tunnel import TunnelStatus
 from pyommyssh.ui.hostCard import HostCard
 
 CARD_MIN_WIDTH = 300
@@ -25,6 +26,8 @@ class DashboardView(QScrollArea):
     openTerminalRequested = Signal(Host)
     editRequested = Signal(Host)
     removeRequested = Signal(Host)
+    startTunnelRequested = Signal(Host)
+    stopTunnelRequested = Signal(Host)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -32,6 +35,7 @@ class DashboardView(QScrollArea):
         self._cards: list[HostCard] = []
         self._headers: list[QLabel] = []
         self._lastMetrics: dict[str, HostMetrics] = {}
+        self._lastTunnelStatus: dict[str, TunnelStatus] = {}
         self._groupByTag = False
         self._columns = 1
 
@@ -86,6 +90,12 @@ class DashboardView(QScrollArea):
         for card in self._cardsNamed(name):
             card.setError(message)
 
+    def showTunnelStatus(self, name: str, status: TunnelStatus) -> None:
+        """Display a tunnel status on every card for a host."""
+        self._lastTunnelStatus[name] = status
+        for card in self._cardsNamed(name):
+            card.setTunnelStatus(status)
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         columns = columnsFor(self.viewport().width())
@@ -101,8 +111,12 @@ class DashboardView(QScrollArea):
         card.openTerminalRequested.connect(self.openTerminalRequested)
         card.editRequested.connect(self.editRequested)
         card.removeRequested.connect(self.removeRequested)
+        card.startTunnelRequested.connect(self.startTunnelRequested)
+        card.stopTunnelRequested.connect(self.stopTunnelRequested)
         if host.name in self._lastMetrics:
             card.setMetrics(self._lastMetrics[host.name])
+        if host.name in self._lastTunnelStatus:
+            card.setTunnelStatus(self._lastTunnelStatus[host.name])
         return card
 
     def _grouped(self) -> list[tuple[str, list[Host]]]:

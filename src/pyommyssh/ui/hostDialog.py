@@ -12,12 +12,31 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPlainTextEdit,
     QPushButton,
     QSpinBox,
     QWidget,
 )
 
+from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource
+
+FORWARD_FIELD_HEIGHT = 64
+
+_FORWARD_LABELS = {
+    ForwardKind.LOCAL: "Local forward",
+    ForwardKind.REMOTE: "Remote forward",
+    ForwardKind.DYNAMIC: "Dynamic forward",
+}
+_FORWARD_PLACEHOLDERS = {
+    ForwardKind.LOCAL: "[bind_address:]port:host:hostport, one per line",
+    ForwardKind.REMOTE: "[bind_address:]port:host:hostport, one per line",
+    ForwardKind.DYNAMIC: "[bind_address:]port, one per line",
+}
+
+
+def _nonBlankLines(edit: QPlainTextEdit) -> list[str]:
+    return [line.strip() for line in edit.toPlainText().splitlines() if line.strip()]
 
 
 class HostDialog(QDialog):
@@ -44,6 +63,14 @@ class HostDialog(QDialog):
         self.proxyJumpEdit = QLineEdit()
         self.tagsEdit = QLineEdit()
         self.tagsEdit.setPlaceholderText("comma separated")
+        self.localForwardsEdit = self._makeForwardEdit(ForwardKind.LOCAL)
+        self.remoteForwardsEdit = self._makeForwardEdit(ForwardKind.REMOTE)
+        self.dynamicForwardsEdit = self._makeForwardEdit(ForwardKind.DYNAMIC)
+        self._forwardEdits = {
+            ForwardKind.LOCAL: self.localForwardsEdit,
+            ForwardKind.REMOTE: self.remoteForwardsEdit,
+            ForwardKind.DYNAMIC: self.dynamicForwardsEdit,
+        }
         self.errorLabel = QLabel("")
         self.errorLabel.setObjectName("errorLabel")
 
@@ -61,6 +88,9 @@ class HostDialog(QDialog):
         form.addRow("Identity file", identityRow)
         form.addRow("Proxy jump", self.proxyJumpEdit)
         form.addRow("Tags", self.tagsEdit)
+        form.addRow("Local forwards", self.localForwardsEdit)
+        form.addRow("Remote forwards", self.remoteForwardsEdit)
+        form.addRow("Dynamic forwards", self.dynamicForwardsEdit)
         form.addRow(self.errorLabel)
 
         buttons = QDialogButtonBox(
@@ -73,6 +103,13 @@ class HostDialog(QDialog):
         if host is not None:
             self._prefill(host)
 
+    def _makeForwardEdit(self, kind: ForwardKind) -> QPlainTextEdit:
+        edit = QPlainTextEdit()
+        edit.setPlaceholderText(_FORWARD_PLACEHOLDERS[kind])
+        edit.setFixedHeight(FORWARD_FIELD_HEIGHT)
+        edit.setTabChangesFocus(True)
+        return edit
+
     def _prefill(self, host: Host) -> None:
         self.nameEdit.setText(host.name)
         self.hostnameEdit.setText(host.hostname)
@@ -81,6 +118,19 @@ class HostDialog(QDialog):
         self.identityEdit.setText(str(host.identityFile) if host.identityFile else "")
         self.proxyJumpEdit.setText(host.proxyJump or "")
         self.tagsEdit.setText(", ".join(host.tags))
+        for kind, edit in self._forwardEdits.items():
+            edit.setPlainText("\n".join(f.spec() for f in host.forwards if f.kind == kind))
+
+    def _parseForwards(self) -> list[PortForward]:
+        """Read every forward field; a bad line raises ValueError naming its kind."""
+        forwards: list[PortForward] = []
+        for kind, edit in self._forwardEdits.items():
+            for line in _nonBlankLines(edit):
+                try:
+                    forwards.append(PortForward.parse(kind, line))
+                except ValueError as error:
+                    raise ValueError(f"{_FORWARD_LABELS[kind]}: {error}") from error
+        return forwards
 
     def _browseIdentity(self) -> None:
         startDir = str(Path.home() / ".ssh")
@@ -97,6 +147,10 @@ class HostDialog(QDialog):
             return f"A host named '{name}' already exists"
         if not self.hostnameEdit.text().strip():
             return "Hostname is required"
+        try:
+            self._parseForwards()
+        except ValueError as error:
+            return str(error)
         return None
 
     def accept(self) -> None:
@@ -120,5 +174,6 @@ class HostDialog(QDialog):
             identityFile=Path(identity) if identity else None,
             proxyJump=self.proxyJumpEdit.text().strip() or None,
             tags=tags,
+            forwards=self._parseForwards(),
             source=HostSource.APP,
         )

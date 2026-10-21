@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from pytestqt.qtbot import QtBot
 
+from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host
 from pyommyssh.core.metrics import HostMetrics
+from pyommyssh.core.tunnel import TunnelState, TunnelStatus
 from pyommyssh.ui.dashboard import CARD_MIN_WIDTH, DashboardView, columnsFor
 
 
@@ -91,3 +93,39 @@ def test_resize_relayouts_cards(qtbot: QtBot) -> None:
     assert view.columns() == 2
     view.resize(CARD_MIN_WIDTH * 3 + 40, 400)
     assert view.columns() == 3
+
+
+def _forwardingHosts() -> list[Host]:
+    hosts = _hosts()
+    hosts[0].forwards = [PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80")]
+    return hosts
+
+
+def test_tunnel_status_routes_to_card_and_survives_rebuild(qtbot: QtBot) -> None:
+    view = DashboardView()
+    qtbot.addWidget(view)
+    view.setHosts(_forwardingHosts())
+    view.showTunnelStatus("web", TunnelStatus(TunnelState.UP))
+    card = view.cardFor("web")
+    assert card is not None
+    assert card.tunnelStatusLabel.text() == "Tunnel active"
+    view.showTunnelStatus("unknown-host", TunnelStatus(TunnelState.UP))  # ignored, no crash
+
+    view.setGroupByTag(True)
+    rebuilt = view.cardFor("web")
+    assert rebuilt is not None and rebuilt is not card
+    assert rebuilt.tunnelStatusLabel.text() == "Tunnel active"
+
+
+def test_tunnel_signals_are_forwarded(qtbot: QtBot) -> None:
+    view = DashboardView()
+    qtbot.addWidget(view)
+    view.setHosts(_forwardingHosts())
+    card = view.cardFor("web")
+    assert card is not None
+    with qtbot.waitSignal(view.startTunnelRequested) as started:
+        card.startTunnelRequested.emit(card.host)
+    assert started.args == [card.host]
+    with qtbot.waitSignal(view.stopTunnelRequested) as stopped:
+        card.stopTunnelRequested.emit(card.host)
+    assert stopped.args == [card.host]

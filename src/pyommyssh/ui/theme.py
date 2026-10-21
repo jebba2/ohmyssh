@@ -72,13 +72,26 @@ QToolButton#cardButton {
 QToolButton#cardButton:hover {
     background: #3a3a44;
 }
-QLabel#hostAddress, QLabel#hostProcesses {
+QLabel#hostAddress, QLabel#hostProcesses, QLabel#hostForwards {
     color: #9a9a9a;
     font-family: Consolas, monospace;
     font-size: 11px;
 }
-QLabel#hostStatus {
+QLabel#hostStatus, QLabel#tunnelStatus {
     color: #c8c8c8;
+    font-size: 11px;
+}
+QLabel#tunnelStatus[tunnelState="up"] {
+    color: #7fd39a;
+}
+QLabel#tunnelStatus[tunnelState="connecting"], QLabel#tunnelStatus[tunnelState="retrying"] {
+    color: #e0c56a;
+}
+QLabel#tunnelStatus[tunnelState="failed"], QLabel#tunnelStatus[tunnelState="auth_required"] {
+    color: #ff8a8a;
+}
+QPushButton#tunnelButton {
+    padding: 2px 8px;
     font-size: 11px;
 }
 QLabel#dockerBadge {
@@ -118,7 +131,7 @@ QLabel#terminalStatus {
 QLabel#errorLabel {
     color: #ff8a8a;
 }
-QLineEdit, QSpinBox, QListWidget {
+QLineEdit, QSpinBox, QListWidget, QPlainTextEdit {
     background: #141417;
     color: #e0e0e0;
     border: 1px solid #3a3a44;

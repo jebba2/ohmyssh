@@ -7,6 +7,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QDialog
 from pytestqt.qtbot import QtBot
 
+from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource
 from pyommyssh.ui.hostDialog import HostDialog
 
@@ -92,5 +93,76 @@ def test_validation_blocks_accept(qtbot: QtBot) -> None:
     assert dialog.errorLabel.text() == "Hostname is required"
 
     dialog.hostnameEdit.setText("fresh.local")
+    dialog.accept()
+    assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_forward_fields_build_rules_in_kind_order(qtbot: QtBot) -> None:
+    dialog = HostDialog(existingNames=set())
+    qtbot.addWidget(dialog)
+    dialog.nameEdit.setText("web")
+    dialog.hostnameEdit.setText("web.local")
+    dialog.localForwardsEdit.setPlainText("8080:localhost:80\n\n  5432:db.internal:5432  \n")
+    dialog.remoteForwardsEdit.setPlainText("9000:127.0.0.1:3000")
+    dialog.dynamicForwardsEdit.setPlainText("1080")
+    dialog.accept()
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    assert dialog.host().forwards == [
+        PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80"),
+        PortForward.parse(ForwardKind.LOCAL, "5432:db.internal:5432"),
+        PortForward.parse(ForwardKind.REMOTE, "9000:127.0.0.1:3000"),
+        PortForward.parse(ForwardKind.DYNAMIC, "1080"),
+    ]
+
+
+def test_blank_forward_fields_mean_no_forwards(qtbot: QtBot) -> None:
+    dialog = HostDialog(existingNames=set())
+    qtbot.addWidget(dialog)
+    dialog.nameEdit.setText("box")
+    dialog.hostnameEdit.setText("box.local")
+    dialog.accept()
+    assert dialog.host().forwards == []
+
+
+def test_edit_prefills_forwards_by_kind(qtbot: QtBot) -> None:
+    existing = Host(
+        name="web",
+        hostname="web.local",
+        forwards=[
+            PortForward.parse(ForwardKind.DYNAMIC, "1080"),
+            PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80"),
+            PortForward.parse(ForwardKind.REMOTE, "9000:127.0.0.1:3000"),
+            PortForward.parse(ForwardKind.LOCAL, "[::1]:5432:db:5432"),
+        ],
+        source=HostSource.APP,
+    )
+    dialog = HostDialog(host=existing, existingNames={"web"})
+    qtbot.addWidget(dialog)
+    assert dialog.localForwardsEdit.toPlainText() == "8080:localhost:80\n[::1]:5432:db:5432"
+    assert dialog.remoteForwardsEdit.toPlainText() == "9000:127.0.0.1:3000"
+    assert dialog.dynamicForwardsEdit.toPlainText() == "1080"
+
+
+def test_invalid_forward_blocks_accept_with_the_reason(qtbot: QtBot) -> None:
+    dialog = HostDialog(existingNames=set())
+    qtbot.addWidget(dialog)
+    dialog.nameEdit.setText("box")
+    dialog.hostnameEdit.setText("box.local")
+    dialog.localForwardsEdit.setPlainText("8080:localhost:80\nbad")
+    dialog.accept()
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert dialog.errorLabel.text() == "Local forward: expected [bind_address:]port:host:hostport, got 'bad'"
+
+    dialog.localForwardsEdit.setPlainText("8080:localhost:80")
+    dialog.dynamicForwardsEdit.setPlainText("70000")
+    dialog.accept()
+    assert dialog.errorLabel.text() == "Dynamic forward: '70000' is not a port between 1 and 65535 in '70000'"
+
+    dialog.dynamicForwardsEdit.setPlainText("1080")
+    dialog.remoteForwardsEdit.setPlainText("9000")
+    dialog.accept()
+    assert dialog.errorLabel.text() == "Remote forward: expected [bind_address:]port:host:hostport, got '9000'"
+
+    dialog.remoteForwardsEdit.setPlainText("")
     dialog.accept()
     assert dialog.result() == QDialog.DialogCode.Accepted

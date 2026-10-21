@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import socket
 from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
 
 from pyommyssh.core.config import AppSettings
+from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource, HostStore
+from pyommyssh.core.tunnel import TunnelState, TunnelStatus
 from pyommyssh.ui.mainWindow import MainWindow
+from tests.echoserver import EchoServer
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TestSshServer, hostFor
 
 WAIT_MS = 10000
@@ -230,3 +235,141 @@ def test_group_by_tag_action_toggles_dashboard(
     assert window.dashboard.groupHeaders() == ["prod"]
     window.groupByTagAction.trigger()
     assert window.dashboard.groupHeaders() == []
+
+
+def _freePort() -> int:
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def _echoThrough(port: int, payload: bytes = b"ping") -> bytes:
+    with socket.create_connection(("127.0.0.1", port), timeout=5) as connection:
+        connection.sendall(payload)
+        return connection.recv(1024)
+
+
+def _forwardingHost(
+    sshServer: TestSshServer, echoPort: int, localPort: int, identityFile: Path | None = None
+) -> Host:
+    host = hostFor(sshServer, identityFile=identityFile)
+    host.forwards = [PortForward.parse(ForwardKind.LOCAL, f"{localPort}:127.0.0.1:{echoPort}")]
+    return host
+
+
+def _tunnelText(window: MainWindow, name: str) -> str:
+    card = window.dashboard.cardFor(name)
+    assert card is not None
+    return card.tunnelStatusLabel.text()
+
+
+def test_tunnel_starts_and_stops_from_the_card(
+    qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, clientKeyFile: Path,
+    store: HostStore, tmp_path: Path, windows: list[MainWindow],
+) -> None:
+    port = _freePort()
+    host = _forwardingHost(sshServer, echoServer.port, port, clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    card = window.dashboard.cardFor("box")
+    assert card is not None
+    assert card.tunnelStatusLabel.text() == "Tunnel off"
+
+    qtbot.mouseClick(card.tunnelButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel active", timeout=WAIT_MS)
+    assert window.tunnels.isRunning("box")
+    assert _echoThrough(port) == b"ping"
+
+    qtbot.mouseClick(card.tunnelButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel off", timeout=WAIT_MS)
+    assert not window.tunnels.isRunning("box")
+
+
+def test_tunnel_prompts_for_a_password_and_retries(
+    qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    port = _freePort()
+    store.add(_forwardingHost(sshServer, echoServer.port, port))
+    prompts: list[str] = []
+    window = _window(qtbot, store, tmp_path, prompts=prompts, answer=TEST_PASSWORD)
+    windows.append(window)
+    window.startTunnel(window.hosts()[0])
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel active", timeout=WAIT_MS)
+    assert prompts == ["box"]
+    assert _echoThrough(port) == b"ping"
+
+
+def test_declined_tunnel_password_shows_on_the_card(
+    qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    store.add(_forwardingHost(sshServer, echoServer.port, _freePort()))
+    window = _window(qtbot, store, tmp_path, prompts=[], answer=None)
+    windows.append(window)
+    window.startTunnel(window.hosts()[0])
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel: password required", timeout=WAIT_MS)
+    assert not window.tunnels.isRunning("box")
+
+
+def test_editing_a_host_restarts_its_tunnel_with_the_new_forwards(
+    qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, clientKeyFile: Path,
+    store: HostStore, tmp_path: Path, windows: list[MainWindow],
+) -> None:
+    oldPort, newPort = _freePort(), _freePort()
+    host = _forwardingHost(sshServer, echoServer.port, oldPort, clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.startTunnel(host)
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel active", timeout=WAIT_MS)
+
+    edited = _forwardingHost(sshServer, echoServer.port, newPort, clientKeyFile)
+    window.saveEditedHost("box", edited)
+    qtbot.waitUntil(lambda: _echoThrough(newPort) == b"ping", timeout=WAIT_MS)
+    assert _tunnelText(window, "box") == "Tunnel active"
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", oldPort))
+
+    # Dropping every forward stops the tunnel instead of restarting it.
+    window.saveEditedHost("box", hostFor(sshServer, identityFile=clientKeyFile))
+    qtbot.waitUntil(lambda: not window.tunnels.isRunning("box"), timeout=WAIT_MS)
+    card = window.dashboard.cardFor("box")
+    assert card is not None
+    assert card.tunnelButton.isHidden()
+
+
+def test_removing_a_host_stops_its_tunnel(
+    qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, clientKeyFile: Path,
+    store: HostStore, tmp_path: Path, windows: list[MainWindow],
+) -> None:
+    port = _freePort()
+    host = _forwardingHost(sshServer, echoServer.port, port, clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.startTunnel(host)
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel active", timeout=WAIT_MS)
+    window.removeHost(host)
+    qtbot.waitUntil(
+        lambda: window.tunnels.status("box") == TunnelStatus(TunnelState.STOPPED), timeout=WAIT_MS
+    )
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", port))
+
+
+def test_shutdown_stops_tunnels(
+    qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, clientKeyFile: Path,
+    store: HostStore, tmp_path: Path,
+) -> None:
+    port = _freePort()
+    host = _forwardingHost(sshServer, echoServer.port, port, clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    window.startTunnel(host)
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel active", timeout=WAIT_MS)
+    window.shutdown()
+    assert not window.tunnels.isRunning("box")
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", port))

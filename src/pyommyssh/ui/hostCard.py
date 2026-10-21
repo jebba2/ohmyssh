@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMenu,
     QProgressBar,
+    QPushButton,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -17,11 +18,29 @@ from PySide6.QtWidgets import (
 
 from pyommyssh.core.hosts import Host, HostSource
 from pyommyssh.core.metrics import HostMetrics
+from pyommyssh.core.tunnel import TunnelState, TunnelStatus
 from pyommyssh.ui.icons import loadIcon
 
 WARN_THRESHOLD = 60.0
 CRITICAL_THRESHOLD = 85.0
 ICON_SIZE = 18
+START_TUNNEL = "Start tunnel"
+STOP_TUNNEL = "Stop tunnel"
+
+
+def tunnelStatusText(status: TunnelStatus) -> str:
+    """Describe a tunnel status in one short line for the card."""
+    if status.state == TunnelState.CONNECTING:
+        return "Tunnel connecting..."
+    if status.state == TunnelState.UP:
+        return "Tunnel active"
+    if status.state == TunnelState.RETRYING:
+        return f"Tunnel reconnecting: {status.message}"
+    if status.state == TunnelState.FAILED:
+        return f"Tunnel failed: {status.message}"
+    if status.state == TunnelState.AUTH_REQUIRED:
+        return "Tunnel: password required"
+    return "Tunnel off"
 
 
 def usageLevel(percent: float) -> str:
@@ -46,10 +65,13 @@ class HostCard(QFrame):
     openTerminalRequested = Signal(Host)
     editRequested = Signal(Host)
     removeRequested = Signal(Host)
+    startTunnelRequested = Signal(Host)
+    stopTunnelRequested = Signal(Host)
 
     def __init__(self, host: Host, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.host = host
+        self._tunnelStatus = TunnelStatus(TunnelState.STOPPED)
         self.setObjectName("hostCard")
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -80,6 +102,17 @@ class HostCard(QFrame):
         self.dockerBadge.setVisible(False)
         self.processesLabel = QLabel("")
         self.processesLabel.setObjectName("hostProcesses")
+        self.forwardsLabel = QLabel("\n".join(forward.describe() for forward in host.forwards))
+        self.forwardsLabel.setObjectName("hostForwards")
+        self.tunnelStatusLabel = QLabel("")
+        self.tunnelStatusLabel.setObjectName("tunnelStatus")
+        self.tunnelButton = QPushButton(START_TUNNEL)
+        self.tunnelButton.setObjectName("tunnelButton")
+        self.tunnelButton.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.tunnelButton.clicked.connect(self._toggleTunnel)
+        tunnelRow = QHBoxLayout()
+        tunnelRow.addWidget(self.tunnelStatusLabel, 1)
+        tunnelRow.addWidget(self.tunnelButton)
 
         layout = QVBoxLayout(self)
         layout.setSpacing(4)
@@ -95,9 +128,14 @@ class HostCard(QFrame):
             self.diskBar,
             self.dockerBadge,
             self.processesLabel,
+            self.forwardsLabel,
         ):
             layout.addWidget(widget)
+        layout.addLayout(tunnelRow)
         self._resetBars()
+        for widget in (self.forwardsLabel, self.tunnelStatusLabel, self.tunnelButton):
+            widget.setVisible(host.hasForwards())
+        self.setTunnelStatus(self._tunnelStatus)
 
     def _makeIconButton(self, iconName: str, toolTip: str) -> QToolButton:
         button = QToolButton()
@@ -172,6 +210,20 @@ class HostCard(QFrame):
         self.statusLabel.setText(message)
         self._setState("error")
 
+    def setTunnelStatus(self, status: TunnelStatus) -> None:
+        """Show where the host's tunnel stands and offer the opposite action."""
+        self._tunnelStatus = status
+        self.tunnelStatusLabel.setText(tunnelStatusText(status))
+        self.tunnelStatusLabel.setProperty("tunnelState", status.state.value)
+        _repolish(self.tunnelStatusLabel)
+        self.tunnelButton.setText(STOP_TUNNEL if status.isActive() else START_TUNNEL)
+
+    def _toggleTunnel(self) -> None:
+        if self._tunnelStatus.isActive():
+            self.stopTunnelRequested.emit(self.host)
+        else:
+            self.startTunnelRequested.emit(self.host)
+
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
             self.openTerminalRequested.emit(self.host)
@@ -181,6 +233,8 @@ class HostCard(QFrame):
         menu = QMenu(self)
         menu.addAction("Open terminal", lambda: self.openTerminalRequested.emit(self.host))
         menu.addAction("Edit host...", lambda: self.editRequested.emit(self.host))
+        if self.host.hasForwards():
+            menu.addAction(self.tunnelButton.text(), self._toggleTunnel)
         if self.host.source == HostSource.APP:
             menu.addAction("Remove host", lambda: self.removeRequested.emit(self.host))
         menu.exec(event.globalPos())

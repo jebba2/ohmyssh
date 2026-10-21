@@ -13,6 +13,12 @@ from pyommyssh.core.ssh import SshAuthError, SshError
 READ_CHUNK_BYTES = 4096
 
 
+class TunnelSignals(QObject):
+    """Carries tunnel status changes from tunnel threads onto the GUI thread."""
+
+    statusChanged = Signal(str, object)
+
+
 class MetricsSignals(QObject):
     """Outcomes of one metrics probe, delivered on the GUI thread."""
 

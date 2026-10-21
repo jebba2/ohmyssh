@@ -24,11 +24,12 @@ from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host, HostSource, HostStore, mergeHosts
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
+from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
 from pyommyssh.ui.dashboard import DashboardView
 from pyommyssh.ui.hostDialog import HostDialog
 from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
 from pyommyssh.ui.terminalTab import TerminalTab
-from pyommyssh.ui.workers import MetricsWorker
+from pyommyssh.ui.workers import MetricsWorker, TunnelSignals
 
 PasswordPrompt = Callable[[Host], str | None]
 PASSWORD_REQUIRED = "Password required"
@@ -74,6 +75,9 @@ class MainWindow(QMainWindow):
         self._shuttingDown = False
         self._threadPool = QThreadPool(self)
         self._threadPool.setMaxThreadCount(MAX_CONCURRENT_CONNECTIONS)
+        self._tunnelSignals = TunnelSignals(self)
+        self._tunnelSignals.statusChanged.connect(self._onTunnelStatus)
+        self.tunnels = TunnelManager(self._pool, self._tunnelSignals.statusChanged.emit)
 
         self.setWindowTitle("pyommyssh")
         self.resize(1100, 720)
@@ -82,6 +86,8 @@ class MainWindow(QMainWindow):
         self.dashboard.openTerminalRequested.connect(self.openTerminal)
         self.dashboard.editRequested.connect(self._editHostDialog)
         self.dashboard.removeRequested.connect(self._confirmRemove)
+        self.dashboard.startTunnelRequested.connect(self.startTunnel)
+        self.dashboard.stopTunnelRequested.connect(self.stopTunnel)
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -143,16 +149,25 @@ class MainWindow(QMainWindow):
         self._hostsChanged()
 
     def saveEditedHost(self, oldName: str, host: Host) -> None:
-        """Replace a stored host; any live connection under the old name is dropped."""
+        """Replace a stored host; any live connection under the old name is dropped.
+
+        A running tunnel is restarted with the new definition, or stopped
+        when the edit removed every forward.
+        """
+        tunnelWasRunning = self.tunnels.isRunning(oldName)
         self._hostStore.update(oldName, host)
         self._hostStore.save()
+        self.tunnels.stop(oldName)
         self._pool.forget(oldName)
         self._hostsChanged()
+        if tunnelWasRunning and host.hasForwards():
+            self.startTunnel(host)
 
     def removeHost(self, host: Host) -> None:
-        """Delete a stored host and close its connection."""
+        """Delete a stored host, stop its tunnel, and close its connection."""
         self._hostStore.remove(host.name)
         self._hostStore.save()
+        self.tunnels.stop(host.name)
         self._pool.forget(host.name)
         self._hostsChanged()
 
@@ -243,6 +258,25 @@ class MainWindow(QMainWindow):
         else:
             self.dashboard.showError(name, PASSWORD_REQUIRED)
 
+    # Tunnels
+
+    def startTunnel(self, host: Host) -> None:
+        """Start, or restart, the host's port forwarding tunnel."""
+        self.tunnels.start(host)
+
+    def stopTunnel(self, host: Host) -> None:
+        """Stop the host's tunnel and release its ports."""
+        self.tunnels.stop(host.name)
+
+    def _onTunnelStatus(self, name: str, status: TunnelStatus) -> None:
+        if self._shuttingDown:
+            return
+        self.dashboard.showTunnelStatus(name, status)
+        if status.state == TunnelState.AUTH_REQUIRED:
+            host = self._hostNamed(name)
+            if host is not None and self._promptCredentials(host):
+                self.startTunnel(host)
+
     # Terminals
 
     def terminalTabs(self) -> list[TerminalTab]:
@@ -305,7 +339,7 @@ class MainWindow(QMainWindow):
     # Lifecycle
 
     def shutdown(self) -> None:
-        """Stop polling, close terminals, and drop every connection.
+        """Stop polling, close terminals and tunnels, and drop every connection.
 
         Queued workers are discarded. Workers already running finish once
         their connection is closed under them, and their results are ignored.
@@ -315,6 +349,7 @@ class MainWindow(QMainWindow):
         self._threadPool.clear()
         for tab in self.terminalTabs():
             tab.shutdown()
+        self.tunnels.shutdown()
         self._pool.closeAll()
         self._threadPool.waitForDone(WORKER_SHUTDOWN_TIMEOUT_MS)
 
