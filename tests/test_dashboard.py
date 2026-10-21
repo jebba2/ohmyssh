@@ -75,6 +75,9 @@ def test_card_signals_are_forwarded(qtbot: QtBot) -> None:
     with qtbot.waitSignal(view.openTerminalRequested) as blocker:
         card.openTerminalRequested.emit(card.host)
     assert blocker.args == [card.host]
+    with qtbot.waitSignal(view.installKeyRequested) as keyBlocker:
+        card.installKeyRequested.emit(card.host)
+    assert keyBlocker.args == [card.host]
 
 
 def test_columns_scale_with_width() -> None:

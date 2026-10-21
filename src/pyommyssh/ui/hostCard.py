@@ -67,6 +67,7 @@ class HostCard(QFrame):
     removeRequested = Signal(Host)
     startTunnelRequested = Signal(Host)
     stopTunnelRequested = Signal(Host)
+    installKeyRequested = Signal(Host)
 
     def __init__(self, host: Host, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -82,9 +83,12 @@ class HostCard(QFrame):
         self.terminalButton.clicked.connect(lambda: self.openTerminalRequested.emit(self.host))
         self.editButton = self._makeIconButton("edit", "Edit host")
         self.editButton.clicked.connect(lambda: self.editRequested.emit(self.host))
+        self.keyButton = self._makeIconButton("key", "Install SSH key")
+        self.keyButton.clicked.connect(lambda: self.installKeyRequested.emit(self.host))
         nameRow = QHBoxLayout()
         nameRow.addWidget(self.nameLabel)
         nameRow.addStretch(1)
+        nameRow.addWidget(self.keyButton)
         nameRow.addWidget(self.editButton)
         nameRow.addWidget(self.terminalButton)
         self.addressLabel = QLabel(host.displayAddress())
@@ -233,6 +237,7 @@ class HostCard(QFrame):
         menu = QMenu(self)
         menu.addAction("Open terminal", lambda: self.openTerminalRequested.emit(self.host))
         menu.addAction("Edit host...", lambda: self.editRequested.emit(self.host))
+        menu.addAction("Install SSH key...", lambda: self.installKeyRequested.emit(self.host))
         if self.host.hasForwards():
             menu.addAction(self.tunnelButton.text(), self._toggleTunnel)
         if self.host.source == HostSource.APP:

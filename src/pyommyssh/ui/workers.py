@@ -7,6 +7,7 @@ from PySide6.QtCore import QObject, QRunnable, QThread, Signal
 
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host
+from pyommyssh.core.keys import KeyInstallError, installPublicKey
 from pyommyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
 from pyommyssh.core.ssh import SshAuthError, SshError
 
@@ -47,6 +48,37 @@ class MetricsWorker(QRunnable):
             self.signals.metricsFailed.emit(self.host.name, str(error))
             return
         self.signals.metricsReady.emit(self.host.name, metricsFromProbeOutput(output))
+
+
+class KeyInstallSignals(QObject):
+    """Outcomes of installing a public key, delivered on the GUI thread."""
+
+    installed = Signal(str, bool)
+    failed = Signal(str, str)
+    authRequired = Signal(str)
+
+
+class KeyInstallWorker(QRunnable):
+    """Connects to a host and appends a public key to its authorized_keys."""
+
+    def __init__(self, host: Host, pool: ConnectionPool, publicKey: str) -> None:
+        super().__init__()
+        self.host = host
+        self._pool = pool
+        self._publicKey = publicKey
+        self.signals = KeyInstallSignals()
+
+    def run(self) -> None:
+        try:
+            client = self._pool.connection(self.host)
+            newlyAdded = installPublicKey(client, self._publicKey)
+        except SshAuthError:
+            self.signals.authRequired.emit(self.host.name)
+            return
+        except (SshError, KeyInstallError) as error:
+            self.signals.failed.emit(self.host.name, str(error))
+            return
+        self.signals.installed.emit(self.host.name, newlyAdded)
 
 
 class ShellSignals(QObject):

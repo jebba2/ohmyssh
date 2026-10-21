@@ -359,6 +359,101 @@ def test_removing_a_host_stops_its_tunnel(
         probe.bind(("127.0.0.1", port))
 
 
+PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxkZXN0cmlwcGVkLWZha2Uta2V5LWJ5dGVzLWhlcmUx jeb@laptop"
+
+
+def _publicKeyFile(tmp_path: Path) -> Path:
+    path = tmp_path / "id_ed25519.pub"
+    path.write_text(f"{PUBLIC_KEY}\n")
+    return path
+
+
+def test_install_key_reports_success_in_the_status_bar(
+    qtbot: QtBot, sshServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n" if "authorized_keys" in command else ""
+    host = hostFor(sshServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.installKey(host, _publicKeyFile(tmp_path))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage() == "Installed id_ed25519.pub on box", timeout=WAIT_MS
+    )
+    assert any(PUBLIC_KEY in command for command in sshServer.commands)
+
+    sshServer.execOutput = lambda command: "PYOMMYSSH:PRESENT\n"
+    window.installKey(host, _publicKeyFile(tmp_path))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage() == "id_ed25519.pub is already on box", timeout=WAIT_MS
+    )
+
+
+def test_install_key_prompts_for_a_password(
+    qtbot: QtBot, sshServer: TestSshServer, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n"
+    host = hostFor(sshServer)
+    store.add(host)
+    prompts: list[str] = []
+    window = _window(qtbot, store, tmp_path, prompts=prompts, answer=TEST_PASSWORD)
+    windows.append(window)
+    window.installKey(host, _publicKeyFile(tmp_path))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage() == "Installed id_ed25519.pub on box", timeout=WAIT_MS
+    )
+    assert prompts == ["box"]
+
+
+def test_install_key_with_declined_password(
+    qtbot: QtBot, sshServer: TestSshServer, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    host = hostFor(sshServer)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path, prompts=[], answer=None)
+    windows.append(window)
+    window.installKey(host, _publicKeyFile(tmp_path))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage()
+        == "Could not install id_ed25519.pub on box: Password required",
+        timeout=WAIT_MS,
+    )
+
+
+def test_install_key_rejects_a_private_key_file(
+    qtbot: QtBot, sshServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    host = hostFor(sshServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.installKey(host, clientKeyFile)
+    message = window.statusBar().currentMessage()
+    assert message.startswith(f"Could not install {clientKeyFile.name} on box: ")
+    assert "is a private key" in message
+    assert sshServer.commands == []
+
+
+def test_install_key_reports_a_server_failure(
+    qtbot: QtBot, sshServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    sshServer.execOutput = lambda command: "bash: authorized_keys: Permission denied\n"
+    host = hostFor(sshServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.installKey(host, _publicKeyFile(tmp_path))
+    qtbot.waitUntil(
+        lambda: window.statusBar().currentMessage()
+        == "Could not install id_ed25519.pub on box: Unexpected reply from the server: "
+        "bash: authorized_keys: Permission denied",
+        timeout=WAIT_MS,
+    )
+
+
 def test_shutdown_stops_tunnels(
     qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, clientKeyFile: Path,
     store: HostStore, tmp_path: Path,

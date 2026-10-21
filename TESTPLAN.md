@@ -73,6 +73,20 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] A chain `ProxyJump a,b` and a nested jump (b itself has a ProxyJump) both work
 - [ ] A ProxyJump naming an unknown host shows an error mentioning that name
 
+## SSH key install
+
+- [ ] Every card has a key button beside the pencil; hovering shows "Install SSH key"; right-click offers "Install SSH key..."
+- [ ] Clicking it opens a file picker in `~/.ssh` filtered to `*.pub`
+- [ ] Choosing a public key on a host that can log in shows "Installed <file> on <host>" in the status bar, and `cat ~/.ssh/authorized_keys` on the server ends with that key
+- [ ] Choosing the same key again shows "<file> is already on <host>" and the file on the server gains no line
+- [ ] The same key with a different comment is also reported as already there
+- [ ] On the server `~/.ssh` is mode 700 and `authorized_keys` is mode 600 afterwards; other lines in the file are untouched
+- [ ] After installing, a host that was using a password connects with the key on the next `F5` when the key has a default name or is the host's identity file
+- [ ] Choosing the private key file shows "Could not install ... is a private key; choose the matching .pub file"
+- [ ] On a host that needs a password, the prompt appears once; cancelling shows "Could not install ... Password required"
+- [ ] A server-side failure (for example a read-only home) shows "Could not install ...: Unexpected reply from the server: ..." with the shell's error text
+- [ ] All three card icons render in the packaged exe
+
 ## Port forwarding
 
 - [ ] A host with `LocalForward 5081 localhost:81` in `~/.ssh/config` shows "L 5081 -> localhost:81" on its card with a "Start tunnel" button and "Tunnel off"
@@ -120,3 +134,5 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [x] `uv run python examples/probe_host.py` with no argument prints usage
 - [x] `uv run python examples/forward_port.py` with no argument prints usage; a bad `-L` rule prints "Bad rule: ..." and exits 2
 - [ ] `uv run python examples/forward_port.py <host> -L 18080:localhost:80` prints the rule, "connecting", "up", and `curl http://127.0.0.1:18080/` works until Ctrl+C prints "Stopping"
+- [x] `uv run python examples/install_key.py` with no argument prints usage; a private key file prints "is a private key" and exits 2
+- [ ] `uv run python examples/install_key.py <host> ~/.ssh/id_rsa.pub` prints "Installed ..." the first time and "already" the second

@@ -10,8 +10,10 @@ from pytestqt.qtbot import QtBot
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.ui.workers import MetricsWorker, ShellOpener, TerminalReader
+from pyommyssh.ui.workers import KeyInstallWorker, MetricsWorker, ShellOpener, TerminalReader
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TestSshServer, hostFor
+
+PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxkZXN0cmlwcGVkLWZha2Uta2V5LWJ5dGVzLWhlcmUx jeb@laptop"
 
 
 def test_metrics_worker_reports_metrics(qtbot: QtBot, sshServer: TestSshServer, tmp_path: Path) -> None:
@@ -90,3 +92,35 @@ def test_shell_opener_reports_auth_required(
     opener = ShellOpener(host, pool, cols=80, rows=24)
     with qtbot.waitSignal(opener.signals.authRequired, timeout=10000):
         QThreadPool.globalInstance().start(opener)
+
+
+def test_key_install_worker_reports_outcome(
+    qtbot: QtBot, sshServer: TestSshServer, tmp_path: Path
+) -> None:
+    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n"
+    host = hostFor(sshServer)
+    pool = ConnectionPool(lambda: [host], knownHostsPath=tmp_path / "known_hosts")
+    pool.setCredentials(host.name, SshCredentials(password=TEST_PASSWORD))
+    worker = KeyInstallWorker(host, pool, PUBLIC_KEY)
+    with qtbot.waitSignal(worker.signals.installed, timeout=10000) as blocker:
+        QThreadPool.globalInstance().start(worker)
+    assert blocker.args == ["box", True]
+    assert PUBLIC_KEY in sshServer.commands[-1]
+
+    sshServer.execOutput = lambda command: "garbage\n"
+    worker = KeyInstallWorker(host, pool, PUBLIC_KEY)
+    with qtbot.waitSignal(worker.signals.failed, timeout=10000) as failedBlocker:
+        QThreadPool.globalInstance().start(worker)
+    assert failedBlocker.args == ["box", "Unexpected reply from the server: garbage"]
+    pool.closeAll()
+
+
+def test_key_install_worker_reports_auth_required(
+    qtbot: QtBot, sshServer: TestSshServer, tmp_path: Path
+) -> None:
+    host = hostFor(sshServer)
+    pool = ConnectionPool(lambda: [host], knownHostsPath=tmp_path / "known_hosts")
+    worker = KeyInstallWorker(host, pool, PUBLIC_KEY)
+    with qtbot.waitSignal(worker.signals.authRequired, timeout=10000) as blocker:
+        QThreadPool.globalInstance().start(worker)
+    assert blocker.args == ["box"]

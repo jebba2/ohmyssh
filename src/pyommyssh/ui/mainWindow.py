@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from PySide6.QtCore import QObject, QThreadPool, QTimer
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QInputDialog,
     QLineEdit,
     QMainWindow,
@@ -22,6 +24,7 @@ from PySide6.QtWidgets import (
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host, HostSource, HostStore, mergeHosts
+from pyommyssh.core.keys import readPublicKey
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
 from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
@@ -29,10 +32,13 @@ from pyommyssh.ui.dashboard import DashboardView
 from pyommyssh.ui.hostDialog import HostDialog
 from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
 from pyommyssh.ui.terminalTab import TerminalTab
-from pyommyssh.ui.workers import MetricsWorker, TunnelSignals
+from pyommyssh.ui.workers import KeyInstallWorker, MetricsWorker, TunnelSignals
+
+logger = logging.getLogger(__name__)
 
 PasswordPrompt = Callable[[Host], str | None]
 PASSWORD_REQUIRED = "Password required"
+PUBLIC_KEY_FILTER = "Public keys (*.pub);;All files (*)"
 MAX_CONCURRENT_CONNECTIONS = 10
 WORKER_SHUTDOWN_TIMEOUT_MS = 15000
 
@@ -88,6 +94,7 @@ class MainWindow(QMainWindow):
         self.dashboard.removeRequested.connect(self._confirmRemove)
         self.dashboard.startTunnelRequested.connect(self.startTunnel)
         self.dashboard.stopTunnelRequested.connect(self.stopTunnel)
+        self.dashboard.installKeyRequested.connect(self._installKeyDialog)
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -257,6 +264,61 @@ class MainWindow(QMainWindow):
             self.refreshHost(host)
         else:
             self.dashboard.showError(name, PASSWORD_REQUIRED)
+
+    # SSH keys
+
+    def _installKeyDialog(self, host: Host) -> None:
+        startDir = str(Path.home() / ".ssh")
+        path, _ = QFileDialog.getOpenFileName(self, "Choose a public key to install", startDir, PUBLIC_KEY_FILTER)
+        if path:
+            self.installKey(host, Path(path))
+
+    def installKey(self, host: Host, publicKeyPath: Path) -> None:
+        """Append the public key in ``publicKeyPath`` to the host's authorized_keys.
+
+        The outcome lands in the status bar. A host that needs a password is
+        asked once, as for the dashboard.
+        """
+        try:
+            publicKey = readPublicKey(publicKeyPath)
+        except ValueError as error:
+            self._reportKeyInstall(host.name, publicKeyPath, str(error))
+            return
+        worker = KeyInstallWorker(host, self._pool, publicKey)
+        signals = worker.signals
+        self._liveSignals.add(signals)
+        signals.installed.connect(lambda name, added: self._onKeyInstalled(name, publicKeyPath, added))
+        signals.failed.connect(lambda name, message: self._reportKeyInstall(name, publicKeyPath, message))
+        signals.authRequired.connect(lambda name: self._onKeyInstallAuthRequired(name, publicKeyPath))
+        for signal in (signals.installed, signals.failed, signals.authRequired):
+            signal.connect(lambda *_, s=signals: self._liveSignals.discard(s))
+        self._threadPool.start(worker)
+
+    def _onKeyInstalled(self, name: str, publicKeyPath: Path, newlyAdded: bool) -> None:
+        if self._shuttingDown:
+            return
+        if newlyAdded:
+            message = f"Installed {publicKeyPath.name} on {name}"
+        else:
+            message = f"{publicKeyPath.name} is already on {name}"
+        logger.info(message)
+        self.statusBar().showMessage(message)
+
+    def _reportKeyInstall(self, name: str, publicKeyPath: Path, problem: str) -> None:
+        if self._shuttingDown:
+            return
+        message = f"Could not install {publicKeyPath.name} on {name}: {problem}"
+        logger.warning(message)
+        self.statusBar().showMessage(message)
+
+    def _onKeyInstallAuthRequired(self, name: str, publicKeyPath: Path) -> None:
+        host = self._hostNamed(name)
+        if host is None or self._shuttingDown:
+            return
+        if self._promptCredentials(host):
+            self.installKey(host, publicKeyPath)
+        else:
+            self._reportKeyInstall(name, publicKeyPath, PASSWORD_REQUIRED)
 
     # Tunnels
 

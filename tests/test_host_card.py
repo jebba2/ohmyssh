@@ -132,6 +132,17 @@ def test_edit_button_sits_beside_name_and_requests_edit(qtbot: QtBot) -> None:
     assert blocker.args == [_host()]
 
 
+def test_key_button_sits_beside_name_and_requests_key_install(qtbot: QtBot) -> None:
+    card = HostCard(_host())
+    qtbot.addWidget(card)
+    assert card.keyButton.toolTip() == "Install SSH key"
+    assert not card.keyButton.icon().isNull()
+    assert card.keyButton in _nameRowWidgets(card)
+    with qtbot.waitSignal(card.installKeyRequested) as blocker:
+        qtbot.mouseClick(card.keyButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [_host()]
+
+
 def test_edit_button_is_offered_for_ssh_config_hosts_too(qtbot: QtBot) -> None:
     configHost = Host(name="cfg", hostname="cfg.local", source=HostSource.SSH_CONFIG)
     card = HostCard(configHost)

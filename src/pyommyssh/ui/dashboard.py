@@ -28,6 +28,7 @@ class DashboardView(QScrollArea):
     removeRequested = Signal(Host)
     startTunnelRequested = Signal(Host)
     stopTunnelRequested = Signal(Host)
+    installKeyRequested = Signal(Host)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -113,6 +114,7 @@ class DashboardView(QScrollArea):
         card.removeRequested.connect(self.removeRequested)
         card.startTunnelRequested.connect(self.startTunnelRequested)
         card.stopTunnelRequested.connect(self.stopTunnelRequested)
+        card.installKeyRequested.connect(self.installKeyRequested)
         if host.name in self._lastMetrics:
             card.setMetrics(self._lastMetrics[host.name])
         if host.name in self._lastTunnelStatus:
