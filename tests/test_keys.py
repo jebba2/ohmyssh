@@ -9,9 +9,15 @@ from pathlib import Path
 
 import pytest
 
+import paramiko
+
 from pyommyssh.core.keys import (
     KeyInstallError,
+    KeyType,
     buildInstallKeyCommand,
+    defaultKeyComment,
+    defaultKeyFileName,
+    generateKeyPair,
     installPublicKey,
     parseInstallOutput,
     readPublicKey,
@@ -130,3 +136,87 @@ def test_install_public_key_reports_unexpected_output(sshServer: TestSshServer, 
             installPublicKey(client, ED25519_KEY)
     finally:
         client.close()
+
+
+def test_generate_ed25519_key_pair(tmp_path: Path) -> None:
+    privatePath = tmp_path / "id_ed25519"
+    publicPath = generateKeyPair(privatePath, KeyType.ED25519, "jeb@laptop", passphrase=None)
+    assert publicPath == tmp_path / "id_ed25519.pub"
+    publicLine = readPublicKey(publicPath)
+    assert publicLine.startswith("ssh-ed25519 ")
+    assert publicLine.endswith(" jeb@laptop")
+    loaded = paramiko.Ed25519Key.from_private_key_file(str(privatePath))
+    assert publicLine.split()[1] == loaded.get_base64()
+    if os.name != "nt":
+        assert (privatePath.stat().st_mode & 0o777) == 0o600
+
+
+def test_generate_rsa_key_pair(tmp_path: Path) -> None:
+    privatePath = tmp_path / "id_rsa"
+    publicPath = generateKeyPair(privatePath, KeyType.RSA, "jeb@laptop", passphrase=None)
+    loaded = paramiko.RSAKey.from_private_key_file(str(privatePath))
+    assert loaded.get_bits() == 4096
+    assert readPublicKey(publicPath).split()[1] == loaded.get_base64()
+
+
+def test_generate_with_passphrase_encrypts_the_private_key(tmp_path: Path) -> None:
+    privatePath = tmp_path / "locked"
+    generateKeyPair(privatePath, KeyType.ED25519, "c", passphrase="open sesame")
+    with pytest.raises(paramiko.PasswordRequiredException):
+        paramiko.Ed25519Key.from_private_key_file(str(privatePath))
+    loaded = paramiko.Ed25519Key.from_private_key_file(str(privatePath), password="open sesame")
+    assert readPublicKey(privatePath.with_suffix(".pub")).split()[1] == loaded.get_base64()
+
+
+def test_generate_creates_the_directory_and_never_overwrites(tmp_path: Path) -> None:
+    privatePath = tmp_path / "new" / "dir" / "id_ed25519"
+    generateKeyPair(privatePath, KeyType.ED25519, "c", passphrase=None)
+    assert privatePath.is_file()
+    with pytest.raises(FileExistsError, match="already exists"):
+        generateKeyPair(privatePath, KeyType.ED25519, "c", passphrase=None)
+    other = tmp_path / "other"
+    other.with_suffix(".pub").write_text("taken\n")
+    with pytest.raises(FileExistsError, match="already exists"):
+        generateKeyPair(other, KeyType.ED25519, "c", passphrase=None)
+    assert not other.exists()
+
+
+def test_generate_rejects_a_comment_with_a_newline(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="single line"):
+        generateKeyPair(tmp_path / "k", KeyType.ED25519, "two\nlines", passphrase=None)
+
+
+@pytest.mark.skipif(shutil.which("ssh-keygen") is None, reason="needs OpenSSH's ssh-keygen")
+def test_generated_key_is_readable_by_openssh(tmp_path: Path) -> None:
+    privatePath = tmp_path / "id_ed25519"
+    publicPath = generateKeyPair(privatePath, KeyType.ED25519, "jeb@laptop", passphrase=None)
+    keygen = shutil.which("ssh-keygen")
+    assert keygen is not None
+    completed = subprocess.run([keygen, "-y", "-f", str(privatePath)], capture_output=True, text=True, check=False)
+    assert completed.returncode == 0, completed.stderr
+    assert completed.stdout.split()[:2] == readPublicKey(publicPath).split()[:2]
+
+
+def test_generated_key_logs_in(hostKey: paramiko.PKey, tmp_path: Path) -> None:
+    privatePath = tmp_path / "id_ed25519"
+    generateKeyPair(privatePath, KeyType.ED25519, "c", passphrase="pass")
+    accepted = paramiko.Ed25519Key.from_private_key_file(str(privatePath), password="pass")
+    server = TestSshServer(hostKey, acceptedKey=accepted)
+    server.start()
+    try:
+        host = hostFor(server, identityFile=privatePath)
+        client = SshClient(host, credentials=SshCredentials(passphrase="pass"), knownHostsPath=tmp_path / "kh")
+        client.connect()
+        try:
+            assert ("publickey", host.user or "") in server.authAttempts
+        finally:
+            client.close()
+    finally:
+        server.stop()
+
+
+def test_default_key_names_and_comment() -> None:
+    assert defaultKeyFileName(KeyType.ED25519) == "id_ed25519"
+    assert defaultKeyFileName(KeyType.RSA) == "id_rsa"
+    comment = defaultKeyComment()
+    assert "@" in comment and "\n" not in comment

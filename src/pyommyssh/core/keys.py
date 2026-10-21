@@ -1,20 +1,34 @@
-"""Installing a public key into a host's ``~/.ssh/authorized_keys``.
+"""SSH key pairs: generating them locally and installing public keys on hosts.
 
-This is the ``ssh-copy-id`` idea over an existing connection: the key line
-is appended once, never overwriting the file, and the directory and file
-permissions are tightened to what sshd insists on. The private key never
-leaves this machine.
+Installing is the ``ssh-copy-id`` idea over an existing connection: the key
+line is appended once, never overwriting the file, and the directory and
+file permissions are tightened to what sshd insists on. The private key
+never leaves this machine.
+
+Generation writes OpenSSH-format files, so ``ssh`` and ``ssh-keygen`` read
+them as their own. Existing files are never overwritten.
 """
 
 from __future__ import annotations
 
+import getpass
+import os
 import re
+import socket
+from enum import Enum
 from pathlib import Path
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
 
 from pyommyssh.core.ssh import SshClient
 
 INSTALLED_MARKER = "PYOMMYSSH:INSTALLED"
 PRESENT_MARKER = "PYOMMYSSH:PRESENT"
+RSA_BITS = 4096
+PRIVATE_KEY_MODE = 0o600
+PUBLIC_KEY_MODE = 0o644
+KEY_DIR_MODE = 0o700
 
 _KEY_TYPE_PATTERN = re.compile(r"^(sk-)?(ssh|ecdsa)-[A-Za-z0-9@.\-]+$")
 _BASE64_PATTERN = re.compile(r"^[A-Za-z0-9+/]+=*$")
@@ -22,6 +36,70 @@ _BASE64_PATTERN = re.compile(r"^[A-Za-z0-9+/]+=*$")
 
 class KeyInstallError(Exception):
     """The server did not confirm that the key was installed."""
+
+
+class KeyType(Enum):
+    """Key algorithms we can generate. Ed25519 is the modern default; RSA for old servers."""
+
+    ED25519 = "ed25519"
+    RSA = "rsa"
+
+
+def defaultKeyFileName(keyType: KeyType) -> str:
+    """The file name ``ssh`` looks for by default: ``id_ed25519`` or ``id_rsa``."""
+    return f"id_{keyType.value}"
+
+
+def defaultKeyComment() -> str:
+    """``user@machine``, as ssh-keygen would write it."""
+    return f"{getpass.getuser()}@{socket.gethostname()}"
+
+
+def _newPrivateKey(keyType: KeyType) -> ed25519.Ed25519PrivateKey | rsa.RSAPrivateKey:
+    if keyType == KeyType.RSA:
+        return rsa.generate_private_key(public_exponent=65537, key_size=RSA_BITS)
+    return ed25519.Ed25519PrivateKey.generate()
+
+
+def _writeNewFile(path: Path, data: bytes, mode: int) -> None:
+    """Create ``path`` with ``mode``, failing if it already exists."""
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, mode)
+    with os.fdopen(descriptor, "wb") as handle:
+        handle.write(data)
+
+
+def generateKeyPair(privatePath: Path, keyType: KeyType, comment: str, passphrase: str | None) -> Path:
+    """Write a new key pair to ``privatePath`` and ``privatePath.pub``; returns the public path.
+
+    Raises FileExistsError if either file is already there, ValueError for a
+    bad comment, and OSError if the files cannot be written.
+    """
+    if "\n" in comment or "\r" in comment:
+        raise ValueError("The comment must be a single line")
+    publicPath = privatePath.with_name(privatePath.name + ".pub")
+    for path in (privatePath, publicPath):
+        if path.exists():
+            raise FileExistsError(f"{path} already exists")
+
+    privateKey = _newPrivateKey(keyType)
+    encryption: serialization.KeySerializationEncryption
+    if passphrase:
+        encryption = serialization.BestAvailableEncryption(passphrase.encode("utf-8"))
+    else:
+        encryption = serialization.NoEncryption()
+    privateBytes = privateKey.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.OpenSSH, encryption
+    )
+    publicLine = privateKey.public_key().public_bytes(
+        serialization.Encoding.OpenSSH, serialization.PublicFormat.OpenSSH
+    ).decode("ascii")
+    if comment.strip():
+        publicLine = f"{publicLine} {comment.strip()}"
+
+    privatePath.parent.mkdir(parents=True, exist_ok=True, mode=KEY_DIR_MODE)
+    _writeNewFile(privatePath, privateBytes, PRIVATE_KEY_MODE)
+    _writeNewFile(publicPath, (publicLine + "\n").encode("ascii"), PUBLIC_KEY_MODE)
+    return publicPath
 
 
 def readPublicKey(path: Path) -> str:
