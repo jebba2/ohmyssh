@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import socket
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -94,11 +95,13 @@ class _Handler(paramiko.ServerInterface):
     def check_channel_exec_request(self, channel: paramiko.Channel, command: bytes) -> bool:
         text = command.decode()
         self._server.commands.append(text)
+        execOutput = self._server.execOutput
+        output = execOutput(text) if execOutput is not None else f"{EXEC_PREFIX}{text}\n"
 
         def reply() -> None:
             # Send EOF rather than closing: a close can overtake paramiko's own
             # exec acknowledgement and the client then sees "Channel closed".
-            channel.sendall(f"{EXEC_PREFIX}{text}\n".encode())
+            channel.sendall(output.encode())
             channel.send_exit_status(0)
             channel.shutdown_write()
 
@@ -232,6 +235,8 @@ class TestSshServer:
         self.cancelledRemoteForwards: list[tuple[str, int]] = []
         self.refuseDirectTcpip = False
         self.refuseRemoteForwards = False
+        # When set, exec requests answer with this instead of the canned echo.
+        self.execOutput: Callable[[str], str] | None = None
         self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._listener.bind(("127.0.0.1", 0))
