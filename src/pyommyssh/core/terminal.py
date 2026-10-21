@@ -47,6 +47,7 @@ _SIMPLE_KEYS: dict[str, bytes] = {
     "Enter": b"\r",
     "Backspace": b"\x7f",
     "Tab": b"\t",
+    "Backtab": b"\x1b[Z",
     "Escape": b"\x1b",
     "F1": b"\x1bOP",
     "F2": b"\x1bOQ",

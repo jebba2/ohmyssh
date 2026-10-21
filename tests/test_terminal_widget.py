@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtGui import QGuiApplication, QWheelEvent
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 from pytestqt.qtbot import QtBot
 
 from pyommyssh.ui.terminalWidget import TerminalWidget
@@ -53,6 +53,26 @@ def test_control_and_navigation_keys(qtbot: QtBot) -> None:
     qtbot.keyClick(widget, Qt.Key.Key_BracketLeft, Qt.KeyboardModifier.ControlModifier)
     qtbot.keyClick(widget, Qt.Key.Key_Shift)
     assert received == [b"\x03", b"\x1b[A", b"\x1b"]
+
+
+def test_tab_and_shift_tab_go_to_the_shell_not_to_focus_traversal(qtbot: QtBot) -> None:
+    window = QWidget()
+    layout = QVBoxLayout(window)
+    other = QLineEdit()
+    widget = TerminalWidget()
+    layout.addWidget(other)
+    layout.addWidget(widget)
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    widget.setFocus()
+    qtbot.waitUntil(widget.hasFocus)
+    received = _collect(widget)
+    qtbot.keyClick(widget, Qt.Key.Key_Tab)
+    qtbot.keyClick(widget, Qt.Key.Key_Backtab, Qt.KeyboardModifier.ShiftModifier)
+    assert received == [b"\t", b"\x1b[Z"]
+    assert widget.hasFocus()
+    assert not other.hasFocus()
 
 
 def test_paste_sends_clipboard_with_cr_line_endings(qtbot: QtBot) -> None:

@@ -159,6 +159,10 @@ class TerminalWidget(QWidget):
         if text:
             self.inputBytes.emit(text.replace("\r\n", "\r").replace("\n", "\r").encode())
 
+    def focusNextPrevChild(self, next: bool) -> bool:
+        """Keep Tab and Shift+Tab: the shell needs them for completion, not focus traversal."""
+        return False
+
     def keyPressEvent(self, event: QKeyEvent) -> None:
         if self._isPaste(event):
             self.pasteClipboard()

@@ -80,6 +80,7 @@ def test_encode_control_keys() -> None:
     assert encodeKey("Enter") == b"\r"
     assert encodeKey("Backspace") == b"\x7f"
     assert encodeKey("Tab") == b"\t"
+    assert encodeKey("Backtab", shift=True) == b"\x1b[Z"
     assert encodeKey("Escape") == b"\x1b"
     assert encodeKey("Delete") == b"\x1b[3~"
     assert encodeKey("Insert") == b"\x1b[2~"
