@@ -247,6 +247,12 @@ class TestSshServer:
     def start(self) -> None:
         self._thread.start()
 
+    def dropConnections(self) -> None:
+        """Close every live session while staying up, so clients can reconnect."""
+        for transport in self._transports:
+            transport.close()
+        self._transports = []
+
     def stop(self) -> None:
         self._stopping.set()
         try:
