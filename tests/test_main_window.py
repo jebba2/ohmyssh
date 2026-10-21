@@ -502,6 +502,83 @@ def test_password_prompt_also_unlocks_a_passphrase_protected_key(
         server.stop()
 
 
+def _sftpRoot(server: TestSshServer) -> Path:
+    assert server.sftpRoot is not None
+    return server.sftpRoot
+
+
+def test_open_sftp_tab_lists_both_sides_and_navigates(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    (root / "docs").mkdir()
+    (root / "docs" / "inner.txt").write_bytes(b"inner")
+    (root / "top.txt").write_bytes(b"top")
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+
+    window.openSftp(host)
+    assert window.tabs.count() == 2
+    assert window.tabs.tabText(1) == "box (files)"
+    tab = window.sftpTabs()[0]
+    qtbot.waitUntil(lambda: tab.remotePane.currentPath() == "/", timeout=WAIT_MS)
+    assert tab.remotePane.names() == ["docs", "top.txt"]
+    qtbot.waitUntil(lambda: tab.localPane.currentPath() == str(Path.home()), timeout=WAIT_MS)
+    assert tab.statusLabel.isHidden()
+
+    tab.remotePane.navigateRequested.emit("/docs")
+    qtbot.waitUntil(lambda: tab.remotePane.currentPath() == "/docs", timeout=WAIT_MS)
+    assert tab.remotePane.names() == ["..", "inner.txt"]
+
+    tab.remotePane.navigateRequested.emit("/nowhere")
+    qtbot.waitUntil(lambda: "Could not list /nowhere" in tab.remotePane.statusLabel.text(), timeout=WAIT_MS)
+    assert tab.remotePane.currentPath() == "/docs"
+
+    localTarget = tmp_path / "localdir"
+    localTarget.mkdir()
+    (localTarget / "l.txt").write_bytes(b"l")
+    tab.localPane.navigateRequested.emit(str(localTarget))
+    qtbot.waitUntil(lambda: tab.localPane.currentPath() == str(localTarget), timeout=WAIT_MS)
+    assert tab.localPane.names() == ["..", "l.txt"]
+
+    entries = window.searchEntries()
+    assert ("session", "box (files, tab 1)") in [(entry.kind, entry.label) for entry in entries]
+
+    window.closeTab(1)
+    qtbot.waitUntil(lambda: window.tabs.count() == 1, timeout=WAIT_MS)
+    assert window.sftpTabs() == []
+
+
+def test_sftp_tab_prompts_for_a_password(
+    qtbot: QtBot, sftpServer: TestSshServer, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    host = hostFor(sftpServer)
+    store.add(host)
+    prompts: list[str] = []
+    window = _window(qtbot, store, tmp_path, prompts=prompts, answer=TEST_PASSWORD)
+    windows.append(window)
+    window.openSftp(host)
+    tab = window.sftpTabs()[0]
+    qtbot.waitUntil(lambda: tab.remotePane.currentPath() == "/", timeout=WAIT_MS)
+    assert prompts == ["box"]
+
+
+def test_sftp_tab_reports_connection_failure(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    host = Host(name="dead", hostname="127.0.0.1", user="x", port=1)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.openSftp(host)
+    tab = window.sftpTabs()[0]
+    qtbot.waitUntil(lambda: "Could not reach" in tab.statusLabel.text(), timeout=WAIT_MS)
+
+
 def test_shutdown_stops_tunnels(
     qtbot: QtBot, sshServer: TestSshServer, echoServer: EchoServer, clientKeyFile: Path,
     store: HostStore, tmp_path: Path,

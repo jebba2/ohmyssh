@@ -78,6 +78,9 @@ def test_card_signals_are_forwarded(qtbot: QtBot) -> None:
     with qtbot.waitSignal(view.installKeyRequested) as keyBlocker:
         card.installKeyRequested.emit(card.host)
     assert keyBlocker.args == [card.host]
+    with qtbot.waitSignal(view.openSftpRequested) as sftpBlocker:
+        card.openSftpRequested.emit(card.host)
+    assert sftpBlocker.args == [card.host]
 
 
 def test_columns_scale_with_width() -> None:

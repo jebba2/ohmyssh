@@ -32,6 +32,7 @@ from pyommyssh.ui.dashboard import DashboardView
 from pyommyssh.ui.hostDialog import HostDialog
 from pyommyssh.ui.keyGenerateDialog import KeyGenerateDialog
 from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
+from pyommyssh.ui.sftpTab import SftpTab
 from pyommyssh.ui.terminalTab import TerminalTab
 from pyommyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, TunnelSignals
 
@@ -96,6 +97,7 @@ class MainWindow(QMainWindow):
         self.dashboard.startTunnelRequested.connect(self.startTunnel)
         self.dashboard.stopTunnelRequested.connect(self.stopTunnel)
         self.dashboard.installKeyRequested.connect(self._installKeyDialog)
+        self.dashboard.openSftpRequested.connect(self.openSftp)
 
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
@@ -410,13 +412,37 @@ class MainWindow(QMainWindow):
             tab.showStatus(PASSWORD_REQUIRED)
 
     def closeTab(self, index: int) -> None:
-        """Close a terminal tab; the dashboard tab stays."""
+        """Close a terminal or SFTP tab; the dashboard tab stays."""
         widget = self.tabs.widget(index)
-        if not isinstance(widget, TerminalTab):
+        if not isinstance(widget, (TerminalTab, SftpTab)):
             return
         self.tabs.removeTab(index)
         widget.shutdown()
         widget.deleteLater()
+
+    # SFTP
+
+    def sftpTabs(self) -> list[SftpTab]:
+        """Return the open SFTP tabs in tab order."""
+        return [
+            widget
+            for widget in (self.tabs.widget(i) for i in range(self.tabs.count()))
+            if isinstance(widget, SftpTab)
+        ]
+
+    def openSftp(self, host: Host) -> None:
+        """Open a new tab with a two-pane file browser for the host."""
+        tab = SftpTab(host, self._pool, self._threadPool)
+        tab.authRequired.connect(lambda: self._onSftpAuthRequired(tab))
+        index = self.tabs.addTab(tab, f"{host.name} (files)")
+        self.tabs.setCurrentIndex(index)
+        tab.start()
+
+    def _onSftpAuthRequired(self, tab: SftpTab) -> None:
+        if self._promptCredentials(tab.host):
+            tab.start()
+        else:
+            tab.showStatus(PASSWORD_REQUIRED)
 
     # Search
 
@@ -427,6 +453,9 @@ class MainWindow(QMainWindow):
             widget = self.tabs.widget(index)
             if isinstance(widget, TerminalTab):
                 label = f"{widget.host.name} (tab {index})"
+                entries.append(SearchEntry(kind="session", label=label, host=widget.host, tabIndex=index))
+            elif isinstance(widget, SftpTab):
+                label = f"{widget.host.name} (files, tab {index})"
                 entries.append(SearchEntry(kind="session", label=label, host=widget.host, tabIndex=index))
         return entries
 
@@ -456,6 +485,8 @@ class MainWindow(QMainWindow):
         self._threadPool.clear()
         for tab in self.terminalTabs():
             tab.shutdown()
+        for sftpTab in self.sftpTabs():
+            sftpTab.shutdown()
         self.tunnels.shutdown()
         self._pool.closeAll()
         self._threadPool.waitForDone(WORKER_SHUTDOWN_TIMEOUT_MS)

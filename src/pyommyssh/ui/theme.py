@@ -131,6 +131,33 @@ QLabel#terminalStatus {
 QLabel#errorLabel {
     color: #ff8a8a;
 }
+QTableWidget {
+    background: #141417;
+    color: #e0e0e0;
+    border: 1px solid #3a3a44;
+    selection-background-color: #34405a;
+    selection-color: #ffffff;
+    font-size: 12px;
+}
+QHeaderView::section {
+    background: #232329;
+    color: #bbbbbb;
+    border: none;
+    border-bottom: 1px solid #3a3a44;
+    padding: 4px 6px;
+}
+QLabel#paneTitle {
+    font-weight: bold;
+    color: #ffffff;
+}
+QLabel#paneStatus {
+    color: #ffd79a;
+    font-size: 11px;
+}
+QSplitter::handle {
+    background: #2a2a30;
+    width: 6px;
+}
 QLineEdit, QSpinBox, QListWidget, QPlainTextEdit, QComboBox {
     background: #141417;
     color: #e0e0e0;

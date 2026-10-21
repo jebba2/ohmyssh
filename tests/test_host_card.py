@@ -143,6 +143,17 @@ def test_key_button_sits_beside_name_and_requests_key_install(qtbot: QtBot) -> N
     assert blocker.args == [_host()]
 
 
+def test_files_button_sits_beside_name_and_opens_sftp(qtbot: QtBot) -> None:
+    card = HostCard(_host())
+    qtbot.addWidget(card)
+    assert card.filesButton.toolTip() == "Browse files"
+    assert not card.filesButton.icon().isNull()
+    assert card.filesButton in _nameRowWidgets(card)
+    with qtbot.waitSignal(card.openSftpRequested) as blocker:
+        qtbot.mouseClick(card.filesButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [_host()]
+
+
 def test_edit_button_is_offered_for_ssh_config_hosts_too(qtbot: QtBot) -> None:
     configHost = Host(name="cfg", hostname="cfg.local", source=HostSource.SSH_CONFIG)
     card = HostCard(configHost)

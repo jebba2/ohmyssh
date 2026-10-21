@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import paramiko
 from PySide6.QtCore import QObject, QRunnable, QThread, Signal
 
@@ -9,9 +11,34 @@ from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host
 from pyommyssh.core.keys import KeyGenerateRequest, KeyInstallError, generateKeyPair, installPublicKey
 from pyommyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
+from pyommyssh.core.sftp import listLocalDir
 from pyommyssh.core.ssh import SshAuthError, SshError
 
 READ_CHUNK_BYTES = 4096
+
+
+class LocalListSignals(QObject):
+    """Outcome of listing a local folder, delivered on the GUI thread."""
+
+    listed = Signal(str, object)
+    failed = Signal(str, str)
+
+
+class LocalListWorker(QRunnable):
+    """Lists a local folder off the GUI thread; slow drives must not freeze the window."""
+
+    def __init__(self, path: str) -> None:
+        super().__init__()
+        self._path = path
+        self.signals = LocalListSignals()
+
+    def run(self) -> None:
+        try:
+            entries = listLocalDir(Path(self._path))
+        except OSError as error:
+            self.signals.failed.emit(self._path, f"Could not list {self._path}: {error}")
+            return
+        self.signals.listed.emit(self._path, entries)
 
 
 class TunnelSignals(QObject):

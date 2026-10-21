@@ -116,6 +116,19 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Closing the app with tunnels running releases their ports
 - [ ] Group by tag keeps each card's tunnel status
 
+## SFTP
+
+- [ ] The folder button beside a host's name (tooltip "Browse files") and the right-click "Browse files" open a tab named "<host> (files)"
+- [ ] The left pane is titled "Local" and starts in your home folder; the right pane is titled after the host and starts in the remote home folder
+- [ ] Folders are listed first, then files, both case-insensitively; sizes read like "1.5 KB" and dates like "2026-10-20 14:03"
+- [ ] Double-clicking a folder enters it; double-clicking `..` or clicking Up goes to the parent; at a root there is no `..` and Up is disabled
+- [ ] Typing a path in the path bar and pressing Enter navigates there; a bad path shows "Could not list ..." above the table and the old listing stays
+- [ ] On Windows the local pane has a drive switch that lists every drive and changes the listing; on a single-root system there is none
+- [ ] A host that needs a password prompts once; cancelling shows "Password required" above the panes
+- [ ] An unreachable host shows "Could not reach ..." above the panes
+- [ ] `Ctrl+K` lists the SFTP tab as "<host> (files, tab N)" and Enter switches to it
+- [ ] Closing the tab closes its SFTP channels (two fewer sessions in the server's log)
+
 ## Search
 
 - [ ] `Ctrl+K` opens the palette listing hosts then open tabs

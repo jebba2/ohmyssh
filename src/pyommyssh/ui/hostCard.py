@@ -68,6 +68,7 @@ class HostCard(QFrame):
     startTunnelRequested = Signal(Host)
     stopTunnelRequested = Signal(Host)
     installKeyRequested = Signal(Host)
+    openSftpRequested = Signal(Host)
 
     def __init__(self, host: Host, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -85,9 +86,12 @@ class HostCard(QFrame):
         self.editButton.clicked.connect(lambda: self.editRequested.emit(self.host))
         self.keyButton = self._makeIconButton("key", "Install SSH key")
         self.keyButton.clicked.connect(lambda: self.installKeyRequested.emit(self.host))
+        self.filesButton = self._makeIconButton("folder", "Browse files")
+        self.filesButton.clicked.connect(lambda: self.openSftpRequested.emit(self.host))
         nameRow = QHBoxLayout()
         nameRow.addWidget(self.nameLabel)
         nameRow.addStretch(1)
+        nameRow.addWidget(self.filesButton)
         nameRow.addWidget(self.keyButton)
         nameRow.addWidget(self.editButton)
         nameRow.addWidget(self.terminalButton)
@@ -236,6 +240,7 @@ class HostCard(QFrame):
     def contextMenuEvent(self, event: QContextMenuEvent) -> None:
         menu = QMenu(self)
         menu.addAction("Open terminal", lambda: self.openTerminalRequested.emit(self.host))
+        menu.addAction("Browse files", lambda: self.openSftpRequested.emit(self.host))
         menu.addAction("Edit host...", lambda: self.editRequested.emit(self.host))
         menu.addAction("Install SSH key...", lambda: self.installKeyRequested.emit(self.host))
         if self.host.hasForwards():

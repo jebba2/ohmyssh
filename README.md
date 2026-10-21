@@ -10,6 +10,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Real terminals.** Click the terminal button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
 - **Port forwarding.** Each host can carry local (`ssh -L`), remote (`ssh -R`), and dynamic SOCKS (`ssh -D`) forwards, in OpenSSH's `[bind_address:]port:host:hostport` notation. `LocalForward`, `RemoteForward`, and `DynamicForward` lines in `~/.ssh/config` are picked up, and app-managed hosts edit theirs in the host dialog. The card lists a host's forwards with a Start/Stop tunnel button and a status line. One tunnel per host carries every forward; it binds its local ports up front, reconnects with a backoff when the connection drops, and keeps the ports while it does. SOCKS4, SOCKS4a, and SOCKS5 without authentication are accepted on dynamic forwards.
+- **SFTP file browser.** The folder button beside a host's name opens a tab with your local disk on the left and the host on the right. Each pane shows name, size, and modified time, with a `..` row, an Up button, a path bar you can type into, and a drive switch on Windows. Both sides list in the background so a slow drive or a slow host never freezes the window.
 - **Generate a key pair.** `Ctrl+G` or the Generate key button asks for the key type (Ed25519 by default, or RSA 4096), a comment, where to save the private key (defaulting to `~/.ssh/id_ed25519`), and an optional passphrase. The files are written in OpenSSH format, the private key with mode 600 and the public key beside it as `.pub`. Existing files are never overwritten. When a host asks for a secret, the one you type is tried both as the login password and as the key's passphrase, so a passphrase-protected key works with the same single prompt.
 - **Install a public key.** The key button beside a host's name picks a `.pub` file from `~/.ssh` and appends it to the host's `~/.ssh/authorized_keys` over the existing connection, the way `ssh-copy-id` does. The key is added only if it is not already there, the directory is set to 700 and the file to 600, and nothing else on the server is touched. The outcome shows in the status bar. The private key never leaves your machine.
 - **One connection per host.** The dashboard poll, every terminal tab, the tunnel, and key installs share a single SSH connection to each host.
@@ -18,7 +19,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 
 ### Not yet ported
 
-SFTP (Phase 2), snippets, streamer mode, and themes (Phase 3). Upstream's key setup also turns off password login on the server after verifying the key; that part is not ported, and the app never edits `sshd_config`. Tunnels do not start on their own when the app opens; each is started from its card. Metrics are gathered with Linux commands first and fall back to macOS forms for CPU, processes, and OS; `free` is Linux-only so RAM shows "n/a" on macOS hosts. Unknown host keys are accepted and logged; a changed host key is rejected. Text selection and copy in the terminal are not implemented yet.
+SFTP transfers and remote file operations (the rest of Phase 2, in progress), snippets, streamer mode, and themes (Phase 3). Upstream's key setup also turns off password login on the server after verifying the key; that part is not ported, and the app never edits `sshd_config`. Tunnels do not start on their own when the app opens; each is started from its card. Metrics are gathered with Linux commands first and fall back to macOS forms for CPU, processes, and OS; `free` is Linux-only so RAM shows "n/a" on macOS hosts. Unknown host keys are accepted and logged; a changed host key is rejected. Text selection and copy in the terminal are not implemented yet.
 
 ## Setup
 
@@ -134,8 +135,8 @@ See [TESTPLAN.md](TESTPLAN.md) for the manual checklist.
 ## Project layout
 
 ```
-src/pyommyssh/core/   hosts, forwards, metrics, ssh, connections, tunnel, socks, keys, terminal, config (no Qt)
-src/pyommyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, mainWindow, workers
+src/pyommyssh/core/   hosts, forwards, metrics, ssh, connections, tunnel, socks, keys, sftp, terminal, config (no Qt)
+src/pyommyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftpTab, sftpBridge, mainWindow, workers
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples
 scripts/              build_windows.py

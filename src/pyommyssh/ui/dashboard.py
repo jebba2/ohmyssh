@@ -29,6 +29,7 @@ class DashboardView(QScrollArea):
     startTunnelRequested = Signal(Host)
     stopTunnelRequested = Signal(Host)
     installKeyRequested = Signal(Host)
+    openSftpRequested = Signal(Host)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -115,6 +116,7 @@ class DashboardView(QScrollArea):
         card.startTunnelRequested.connect(self.startTunnelRequested)
         card.stopTunnelRequested.connect(self.stopTunnelRequested)
         card.installKeyRequested.connect(self.installKeyRequested)
+        card.openSftpRequested.connect(self.openSftpRequested)
         if host.name in self._lastMetrics:
             card.setMetrics(self._lastMetrics[host.name])
         if host.name in self._lastTunnelStatus:
