@@ -9,13 +9,14 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Live dashboard.** Every host is a card with CPU, RAM, and disk bars, OS name, uptime, load average, a Docker badge with the running container count, and the top three processes. Bars turn yellow at 60% and red at 85%. Cards refresh on a timer and can be grouped by tag.
 - **Real terminals.** Click the terminal button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
-- **One connection per host.** The dashboard poll and every terminal tab share a single SSH connection to each host.
+- **Port forwarding.** Each host can carry local (`ssh -L`), remote (`ssh -R`), and dynamic SOCKS (`ssh -D`) forwards, in OpenSSH's `[bind_address:]port:host:hostport` notation. `LocalForward`, `RemoteForward`, and `DynamicForward` lines in `~/.ssh/config` are picked up, and app-managed hosts edit theirs in the host dialog. The card lists a host's forwards with a Start/Stop tunnel button and a status line. One tunnel per host carries every forward; it binds its local ports up front, reconnects with a backoff when the connection drops, and keeps the ports while it does. SOCKS4, SOCKS4a, and SOCKS5 without authentication are accepted on dynamic forwards.
+- **One connection per host.** The dashboard poll, every terminal tab, and the tunnel share a single SSH connection to each host.
 - **ProxyJump.** Multi-hop chains such as `ProxyJump bastion,inner` are honored, including nested jumps.
 - **Passwords stay in memory.** When key authentication fails you are asked once per host; the password is kept only until the app exits.
 
 ### Not yet ported
 
-SFTP (Phase 2), snippets, one-click key setup, streamer mode, port forwarding, and themes (Phase 3). Metrics are gathered with Linux commands first and fall back to macOS forms for CPU, processes, and OS; `free` is Linux-only so RAM shows "n/a" on macOS hosts. Unknown host keys are accepted and logged; a changed host key is rejected. Text selection and copy in the terminal are not implemented yet.
+SFTP (Phase 2), snippets, one-click key setup, streamer mode, and themes (Phase 3). Tunnels do not start on their own when the app opens; each is started from its card. Metrics are gathered with Linux commands first and fall back to macOS forms for CPU, processes, and OS; `free` is Linux-only so RAM shows "n/a" on macOS hosts. Unknown host keys are accepted and logged; a changed host key is rejected. Text selection and copy in the terminal are not implemented yet.
 
 ## Setup
 
@@ -80,9 +81,14 @@ port = 2222
 identity_file = "C:/Users/you/.ssh/web_key"
 proxy_jump = "bastion"
 tags = ["prod", "web"]
+local_forwards = ["8080:localhost:80", "127.0.0.1:5432:db.internal:5432"]
+remote_forwards = ["9000:127.0.0.1:3000"]
+dynamic_forwards = ["1080"]
 ```
 
 A host here with the same name as one in `~/.ssh/config` takes precedence.
+
+The three forward lists are optional. A local forward listens on this machine and the server connects onward to `host:hostport`. A remote forward makes the server listen and this machine connects onward. A dynamic forward listens on this machine as a SOCKS proxy and takes only `[bind_address:]port`. Without a bind address a forward listens on loopback only; `*` means every interface. IPv6 addresses go in brackets, as in `[::1]:8080:localhost:80`.
 
 ### Logs
 
@@ -105,7 +111,10 @@ Runnable scripts that use the core library without the GUI:
 ```powershell
 uv run python examples/list_hosts.py          # print every known host
 uv run python examples/probe_host.py myhost   # connect and print dashboard metrics
+uv run python examples/forward_port.py myhost -L 8080:localhost:80   # run a tunnel until Ctrl+C
 ```
+
+`forward_port.py` uses the host's own forwards when none are given on the command line, and takes any mix of `-L`, `-R`, and `-D` rules otherwise.
 
 ## Development
 
@@ -120,7 +129,7 @@ See [TESTPLAN.md](TESTPLAN.md) for the manual checklist.
 ## Project layout
 
 ```
-src/pyommyssh/core/   hosts, metrics, ssh, connections, terminal, config (no Qt)
+src/pyommyssh/core/   hosts, forwards, metrics, ssh, connections, tunnel, socks, terminal, config (no Qt)
 src/pyommyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, mainWindow, workers
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples

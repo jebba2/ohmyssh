@@ -27,6 +27,9 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Right-click an app host: Edit host changes the card; Remove host asks to confirm and removes it
 - [ ] Right-click an SSH config host: Open terminal and Edit host are offered, Remove host is not
 - [ ] An app host with the same name as an SSH config host replaces it on the dashboard
+- [ ] In Add host, a bad line in Local forwards shows "Local forward: expected [bind_address:]port:host:hostport, got '...'" and the dialog stays open
+- [ ] Saving a host with forwards writes `local_forwards`, `remote_forwards`, and `dynamic_forwards` lists to `hosts.toml`; empty lists are omitted
+- [ ] Edit host shows the saved forwards, one per line, in the box for their kind
 
 ## Dashboard
 
@@ -70,6 +73,24 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] A chain `ProxyJump a,b` and a nested jump (b itself has a ProxyJump) both work
 - [ ] A ProxyJump naming an unknown host shows an error mentioning that name
 
+## Port forwarding
+
+- [ ] A host with `LocalForward 5081 localhost:81` in `~/.ssh/config` shows "L 5081 -> localhost:81" on its card with a "Start tunnel" button and "Tunnel off"
+- [ ] A host with no forwards shows no forward list, status line, or tunnel button
+- [ ] Start tunnel shows "Tunnel connecting..." then "Tunnel active" in green, and the button becomes "Stop tunnel"
+- [ ] With a local forward active, `curl http://127.0.0.1:<port>/` reaches the service on the server side
+- [ ] With a dynamic forward active, `curl --socks5-hostname 127.0.0.1:<port> http://<internal-host>/` reaches a host only the server can see
+- [ ] With a remote forward active, `curl http://127.0.0.1:<port>/` on the server reaches a service running on this machine
+- [ ] Stop tunnel shows "Tunnel off" and the local port can be bound by another program
+- [ ] Right-click a host with forwards: the menu offers "Start tunnel" or "Stop tunnel" to match the button
+- [ ] Killing the SSH session on the server (`pkill -u <user> sshd` or dropping the network) shows "Tunnel reconnecting: connection lost" in yellow, then "Tunnel active" once the server is back; the port stays bound meanwhile
+- [ ] Starting a tunnel whose local port is in use shows "Tunnel failed: Could not listen on 127.0.0.1:<port>: ..." in red
+- [ ] Starting a tunnel on a host that needs a password prompts once; cancelling shows "Tunnel: password required"
+- [ ] Editing a host with a running tunnel restarts the tunnel with the new forwards; removing every forward stops it and hides the controls
+- [ ] Removing a host with a running tunnel stops the tunnel
+- [ ] Closing the app with tunnels running releases their ports
+- [ ] Group by tag keeps each card's tunnel status
+
 ## Search
 
 - [ ] `Ctrl+K` opens the palette listing hosts then open tabs
@@ -97,3 +118,5 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [x] `uv run python examples/list_hosts.py` lists the same hosts the app shows
 - [ ] `uv run python examples/probe_host.py <host>` prints metrics for a reachable host
 - [x] `uv run python examples/probe_host.py` with no argument prints usage
+- [x] `uv run python examples/forward_port.py` with no argument prints usage; a bad `-L` rule prints "Bad rule: ..." and exits 2
+- [ ] `uv run python examples/forward_port.py <host> -L 18080:localhost:80` prints the rule, "connecting", "up", and `curl http://127.0.0.1:18080/` works until Ctrl+C prints "Stopping"

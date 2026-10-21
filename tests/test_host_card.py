@@ -94,9 +94,18 @@ def test_double_click_requests_terminal(qtbot: QtBot) -> None:
 
 
 def _nameRowWidgets(card: HostCard) -> list[object]:
-    nameRow = card.nameLabel.parentWidget().layout().itemAt(0).layout()
+    cardLayout = card.layout()
+    assert cardLayout is not None
+    nameRowItem = cardLayout.itemAt(0)
+    assert nameRowItem is not None
+    nameRow = nameRowItem.layout()
     assert nameRow is not None
-    return [nameRow.itemAt(i).widget() for i in range(nameRow.count())]
+    widgets: list[object] = []
+    for index in range(nameRow.count()):
+        item = nameRow.itemAt(index)
+        assert item is not None
+        widgets.append(item.widget())
+    return widgets
 
 
 def test_terminal_button_sits_beside_name_and_opens_terminal(qtbot: QtBot) -> None:

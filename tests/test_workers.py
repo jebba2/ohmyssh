@@ -21,6 +21,7 @@ def test_metrics_worker_reports_metrics(qtbot: QtBot, sshServer: TestSshServer, 
     worker = MetricsWorker(host, pool)
     with qtbot.waitSignal(worker.signals.metricsReady, timeout=10000) as blocker:
         QThreadPool.globalInstance().start(worker)
+    assert blocker.args is not None
     name, metrics = blocker.args
     assert name == "box"
     assert isinstance(metrics, HostMetrics)
@@ -47,6 +48,7 @@ def test_metrics_worker_reports_failure(qtbot: QtBot, tmp_path: Path) -> None:
     worker = MetricsWorker(host, pool)
     with qtbot.waitSignal(worker.signals.metricsFailed, timeout=10000) as blocker:
         QThreadPool.globalInstance().start(worker)
+    assert blocker.args is not None
     name, message = blocker.args
     assert name == "dead"
     assert "Could not reach" in message
@@ -61,6 +63,7 @@ def test_shell_opener_and_reader_round_trip(
     opener = ShellOpener(host, pool, cols=90, rows=25)
     with qtbot.waitSignal(opener.signals.opened, timeout=10000) as blocker:
         QThreadPool.globalInstance().start(opener)
+    assert blocker.args is not None
     channel = blocker.args[0]
     assert sshServer.ptyRequests == [("xterm-256color", 90, 25)]
 
