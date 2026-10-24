@@ -9,7 +9,7 @@ import paramiko
 import pytest
 
 from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host, resolveJumpChain
+from pyommyssh.core.hosts import GlobalSettings, Host, resolveJumpChain
 from pyommyssh.core.keys import KeyType, generateKeyPair
 from pyommyssh.core.ssh import SshAuthError, SshCredentials, SshError
 from tests.sshserver import EXEC_PREFIX, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor as _host
@@ -200,5 +200,21 @@ def test_pool_remembers_the_passphrase_by_identity_file(
         pool.setCredentials("first", SshCredentials(passphrase=PASSPHRASE))
         pool.connection(first)
         assert pool.knownPassphrases() == {privatePath.resolve(): PASSPHRASE}
+    finally:
+        pool.closeAll()
+
+
+def test_pool_applies_global_settings_to_new_connections(
+    sshServer: TestSshServer, clientKeyFile: Path, tmp_path: Path
+) -> None:
+    host = _host(sshServer)
+    settings = GlobalSettings(identityFile=clientKeyFile, compression=True, serverAliveInterval=45)
+    pool = ConnectionPool(lambda: [host], knownHostsPath=tmp_path / "known_hosts", globalSettingsProvider=lambda: settings)
+    try:
+        client = pool.connection(host)
+        assert client.isConnected()
+        assert client.compressionInUse()
+        assert client.keepaliveSeconds() == 45
+        assert ("publickey", TEST_USER) in sshServer.authAttempts
     finally:
         pool.closeAll()

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import socket
 import threading
+import time
 from pathlib import Path
 
 import paramiko
 import pytest
 
-from pyommyssh.core.hosts import Host
+from pyommyssh.core.hosts import GlobalSettings, Host
 from pyommyssh.core.keys import KeyType, generateKeyPair
 from pyommyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError, passphraseUnlocks
 from tests.echoserver import EchoServer
@@ -278,3 +279,77 @@ def test_passphrase_unlocks_only_an_encrypted_key_it_opens(tmp_path: Path) -> No
     assert not passphraseUnlocks(tmp_path / "missing", "x")
     (tmp_path / "garbage").write_text("not a key\n")
     assert not passphraseUnlocks(tmp_path / "garbage", "x")
+
+
+def _connected(server: TestSshServer, tmp_path: Path, host: Host, settings: GlobalSettings) -> SshClient:
+    client = SshClient(
+        host,
+        credentials=SshCredentials(password=TEST_PASSWORD),
+        knownHostsPath=tmp_path / "known_hosts",
+        globalSettings=settings,
+    )
+    client.connect()
+    return client
+
+
+def test_keepalives_follow_the_host_then_the_global_interval(sshServer: TestSshServer, tmp_path: Path) -> None:
+    host = _hostFor(sshServer)
+    host.serverAliveInterval = 1
+    client = _connected(sshServer, tmp_path, host, GlobalSettings(serverAliveInterval=600))
+    try:
+        assert client.keepaliveSeconds() == 1
+        def keepalives() -> list[str]:
+            return [kind for kind in sshServer.globalRequests if kind.startswith("keepalive@")]
+
+        deadline = time.monotonic() + 6
+        while not keepalives() and time.monotonic() < deadline:
+            time.sleep(0.1)
+        assert keepalives()
+    finally:
+        client.close()
+
+
+def test_keepalive_is_off_without_any_setting(sshServer: TestSshServer, tmp_path: Path) -> None:
+    client = _connected(sshServer, tmp_path, _hostFor(sshServer), GlobalSettings())
+    try:
+        assert client.keepaliveSeconds() is None
+    finally:
+        client.close()
+
+
+def test_compression_is_negotiated_from_global_and_overridden_per_host(
+    sshServer: TestSshServer, tmp_path: Path
+) -> None:
+    plain = _connected(sshServer, tmp_path, _hostFor(sshServer), GlobalSettings(compression=True))
+    try:
+        assert plain.compressionInUse()
+    finally:
+        plain.close()
+    host = _hostFor(sshServer)
+    host.compression = False
+    overridden = _connected(sshServer, tmp_path, host, GlobalSettings(compression=True))
+    try:
+        assert not overridden.compressionInUse()
+    finally:
+        overridden.close()
+    default = _connected(sshServer, tmp_path, _hostFor(sshServer), GlobalSettings())
+    try:
+        assert not default.compressionInUse()
+    finally:
+        default.close()
+
+
+def test_global_identity_file_is_used_when_the_host_has_none(
+    sshServer: TestSshServer, clientKeyFile: Path, tmp_path: Path
+) -> None:
+    client = SshClient(
+        _hostFor(sshServer),
+        knownHostsPath=tmp_path / "known_hosts",
+        globalSettings=GlobalSettings(identityFile=clientKeyFile),
+    )
+    client.connect()
+    try:
+        assert ("publickey", TEST_USER) in sshServer.authAttempts
+        assert ("password", TEST_USER) not in sshServer.authAttempts
+    finally:
+        client.close()

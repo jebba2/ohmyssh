@@ -11,16 +11,22 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from pyommyssh.core.hosts import Host, resolveJumpChain
+from pyommyssh.core.hosts import GlobalSettings, Host, resolveJumpChain
 from pyommyssh.core.ssh import SshClient, SshCredentials, SshError, passphraseUnlocks
 
 
 class ConnectionPool:
     """Opens connections on demand and reuses them while they stay up."""
 
-    def __init__(self, hostsProvider: Callable[[], list[Host]], knownHostsPath: Path | None) -> None:
+    def __init__(
+        self,
+        hostsProvider: Callable[[], list[Host]],
+        knownHostsPath: Path | None,
+        globalSettingsProvider: Callable[[], GlobalSettings] | None = None,
+    ) -> None:
         self._hostsProvider = hostsProvider
         self._knownHostsPath = knownHostsPath
+        self._globalSettingsProvider = globalSettingsProvider or GlobalSettings
         self._clients: dict[str, SshClient] = {}
         self._credentials: dict[str, SshCredentials] = {}
         self._passphrasesByKey: dict[Path, str] = {}
@@ -83,6 +89,7 @@ class ConnectionPool:
                 credentials=credentials,
                 jumpHosts=jumps,
                 knownHostsPath=self._knownHostsPath,
+                globalSettings=self._globalSettingsProvider(),
             )
             client.connect()
             self._clients[host.name] = client

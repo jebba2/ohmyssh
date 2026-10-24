@@ -143,6 +143,11 @@ class _Handler(paramiko.ServerInterface):
         threading.Thread(target=echo, daemon=True).start()
         return True
 
+    def check_global_request(self, kind: str, msg: paramiko.Message) -> bool:
+        """Record keepalives and other global requests; none need a reply payload."""
+        self._server.globalRequests.append(kind)
+        return False
+
     def check_port_forward_request(self, address: str, port: int) -> int:
         """Listen on the requested port and open a forwarded-tcpip channel per connection.
 
@@ -242,6 +247,8 @@ class TestSshServer:
         self.cancelledRemoteForwards: list[tuple[str, int]] = []
         self.refuseDirectTcpip = False
         self.refuseRemoteForwards = False
+        # Global requests seen on any session, e.g. paramiko's "keepalive@lag.net".
+        self.globalRequests: list[str] = []
         # When set, exec requests answer with this instead of the canned echo.
         self.execOutput: Callable[[str], str] | None = None
         self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -283,6 +290,8 @@ class TestSshServer:
                 return
             transport = paramiko.Transport(client)
             transport.add_server_key(self.hostKey)
+            # Offer compression so a client that asks for it can negotiate it.
+            transport.use_compression(True)
             if self.sftpRoot is not None:
                 transport.set_subsystem_handler(
                     "sftp", paramiko.SFTPServer, DirectorySftpServer,

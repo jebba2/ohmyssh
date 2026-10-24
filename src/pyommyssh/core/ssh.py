@@ -15,7 +15,7 @@ from pathlib import Path
 
 import paramiko
 
-from pyommyssh.core.hosts import Host
+from pyommyssh.core.hosts import GlobalSettings, Host, effectiveSettings
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +86,14 @@ class SshClient:
         credentials: SshCredentials | None = None,
         jumpHosts: list[Host] | None = None,
         knownHostsPath: Path | None = None,
+        globalSettings: GlobalSettings | None = None,
     ) -> None:
         self.host = host
         self._credentials = credentials or SshCredentials()
         self._jumpHosts = list(jumpHosts or [])
         self._knownHostsPath = knownHostsPath
+        self._globalSettings = globalSettings or GlobalSettings()
+        self._settings = effectiveSettings(host, self._globalSettings)
         self._client: paramiko.SSHClient | None = None
         self._jumpClients: list[SshClient] = []
 
@@ -101,13 +104,28 @@ class SshClient:
         transport = self._client.get_transport()
         return transport is not None and transport.is_active()
 
+    def keepaliveSeconds(self) -> int | None:
+        """The keepalive interval this connection uses, or None when off."""
+        return self._settings.keepaliveSeconds
+
+    def compressionInUse(self) -> bool:
+        """True when the open connection negotiated compression."""
+        if self._client is None:
+            return False
+        transport = self._client.get_transport()
+        if transport is None:
+            return False
+        return getattr(transport, "local_compression", "none") not in (None, "none")
+
     def connect(self, timeout: float = 10.0) -> None:
         """Open the connection, walking the jump chain first."""
         sock: paramiko.Channel | None = None
         try:
             hops = self._jumpHosts + [self.host]
             for index, hop in enumerate(self._jumpHosts):
-                jumpClient = SshClient(hop, self._credentials, knownHostsPath=self._knownHostsPath)
+                jumpClient = SshClient(
+                    hop, self._credentials, knownHostsPath=self._knownHostsPath, globalSettings=self._globalSettings
+                )
                 jumpClient._openTransport(sock, timeout)
                 self._jumpClients.append(jumpClient)
                 nextHop = hops[index + 1]
@@ -191,7 +209,7 @@ class SshClient:
         client = paramiko.SSHClient()
         _loadKnownHosts(client, self._knownHostsPath)
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        identity = self.host.identityFile
+        identity = self._settings.identityFile
         keyFilename = str(identity) if identity is not None and identity.is_file() else None
         logger.info("Connecting to %s (%s)", self.host.name, self.host.displayAddress())
         connection: socket.socket | paramiko.Channel = sock if sock is not None else self._openSocket(timeout)
@@ -207,11 +225,15 @@ class SshClient:
                 timeout=timeout,
                 auth_timeout=timeout,
                 banner_timeout=timeout,
+                compress=self._settings.compression,
             )
         except (paramiko.SSHException, OSError) as error:
             client.close()
             connection.close()
             raise self._translateError(error) from error
+        transport = client.get_transport()
+        if transport is not None and self._settings.keepaliveSeconds:
+            transport.set_keepalive(self._settings.keepaliveSeconds)
         self._client = client
 
     def _requireClient(self) -> paramiko.SSHClient:
