@@ -94,7 +94,7 @@ def test_editing_a_block_touches_only_managed_lines(tmp_path: Path) -> None:
         "Host web   # the web box\n"
         "  HostName old.local\n"
         "  Port 22\n"
-        "  ServerAliveInterval 10\n"
+        "  ForwardAgent yes\n"
         "  # keep this comment\n"
         "  LocalForward 1111 localhost:1\n"
         "  LocalForward 2222 localhost:2\n"
@@ -120,7 +120,7 @@ def test_editing_a_block_touches_only_managed_lines(tmp_path: Path) -> None:
         "  HostName new.local\n"
         "  User deploy\n"
         "  DynamicForward 1080\n"
-        "  ServerAliveInterval 10\n"
+        "  ForwardAgent yes\n"
         "  # keep this comment\n"
         "\n"
         "Host other\n"
@@ -223,7 +223,7 @@ def test_global_settings_are_read_from_the_host_star_block(tmp_path: Path) -> No
         identityFile=tmp_path / ".ssh" / "id_rsa",
         compression=True,
     )
-    bare, _ = _editor(tmp_path, EXISTING)
+    bare, _ = _editor(tmp_path, "Host other\n    HostName other.local\n")
     assert bare.globalSettings() == GlobalSettings()
     missing = SshConfigEditor(tmp_path / "nope" / "config", home=tmp_path)
     assert missing.globalSettings() == GlobalSettings()

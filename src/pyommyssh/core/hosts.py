@@ -56,6 +56,10 @@ class Host:
     # names on the same Host line, which share every directive with this one.
     sourceFile: Path | None = None
     sharedWith: list[str] = field(default_factory=list)
+    # None means "not set here": the global Host * value, or ssh's default, applies.
+    serverAliveInterval: int | None = None
+    serverAliveCountMax: int | None = None
+    compression: bool | None = None
 
     def hasForwards(self) -> bool:
         """Return True when the host defines at least one port forward."""
@@ -67,6 +71,40 @@ class Host:
         if self.port != 22:
             address = f"{address}:{self.port}"
         return address
+
+
+@dataclass(frozen=True)
+class GlobalSettings:
+    """Defaults every host inherits, kept in the ``Host *`` block of ~/.ssh/config."""
+
+    serverAliveInterval: int | None = None
+    serverAliveCountMax: int | None = None
+    identityFile: Path | None = None
+    compression: bool | None = None
+
+
+@dataclass(frozen=True)
+class EffectiveSettings:
+    """What a connection actually uses once host and global values are combined."""
+
+    keepaliveSeconds: int | None
+    identityFile: Path | None
+    compression: bool
+
+
+def effectiveSettings(host: Host, globalSettings: GlobalSettings) -> EffectiveSettings:
+    """Combine a host with the global defaults: the host's own value wins when set.
+
+    A keepalive of 0 means off. ServerAliveCountMax has no paramiko
+    equivalent, so it is left to ssh and not part of the result.
+    """
+    interval = host.serverAliveInterval if host.serverAliveInterval is not None else globalSettings.serverAliveInterval
+    compression = host.compression if host.compression is not None else globalSettings.compression
+    return EffectiveSettings(
+        keepaliveSeconds=interval if interval else None,
+        identityFile=host.identityFile or globalSettings.identityFile,
+        compression=bool(compression),
+    )
 
 
 def _isWildcard(pattern: str) -> bool:
@@ -109,7 +147,7 @@ def _splitDirective(line: str) -> tuple[str, str] | None:
     return match.group(1).lower(), match.group(2).strip()
 
 
-def _expandHome(value: str, home: Path) -> Path:
+def expandHome(value: str, home: Path) -> Path:
     if value.startswith("~"):
         return home / value[1:].lstrip("/\\")
     return Path(value)
@@ -127,9 +165,15 @@ def _applyDirective(hosts: list[Host], keyword: str, value: str, home: Path) -> 
             if value.isdigit() and 0 < int(value) < 65536:
                 host.port = int(value)
         elif keyword == "identityfile" and host.identityFile is None:
-            host.identityFile = _expandHome(value, home)
+            host.identityFile = expandHome(value, home)
         elif keyword == "proxyjump":
             host.proxyJump = value
+        elif keyword == "serveraliveinterval" and value.isdigit():
+            host.serverAliveInterval = int(value)
+        elif keyword == "serveralivecountmax" and value.isdigit():
+            host.serverAliveCountMax = int(value)
+        elif keyword == "compression" and value.lower() in ("yes", "no"):
+            host.compression = value.lower() == "yes"
         elif keyword in _FORWARD_DIRECTIVES:
             forward = _parseForwardDirective(_FORWARD_DIRECTIVES[keyword], value)
             if forward is not None:
@@ -172,7 +216,7 @@ def _resolveIncludes(value: str, baseDir: Path, home: Path) -> list[Path]:
     """Expand Include globs relative to the SSH directory; directories are skipped."""
     resolved: list[Path] = []
     for pattern in _includePatterns(value):
-        patternPath = _expandHome(pattern, home)
+        patternPath = expandHome(pattern, home)
         if patternPath.is_absolute():
             anchor, glob = patternPath.anchor, str(patternPath.relative_to(patternPath.anchor))
             matches = sorted(Path(anchor).glob(glob))
@@ -264,6 +308,12 @@ def _hostToToml(host: Host) -> dict[str, object]:
         data["proxy_jump"] = host.proxyJump
     if host.tags:
         data["tags"] = list(host.tags)
+    if host.serverAliveInterval is not None:
+        data["server_alive_interval"] = host.serverAliveInterval
+    if host.serverAliveCountMax is not None:
+        data["server_alive_count_max"] = host.serverAliveCountMax
+    if host.compression is not None:
+        data["compression"] = host.compression
     for kind, key in _FORWARD_TOML_KEYS.items():
         specs = [forward.spec() for forward in host.forwards if forward.kind == kind]
         if specs:
@@ -286,11 +336,20 @@ def _forwardsFromToml(data: dict[str, object]) -> list[PortForward]:
     return forwards
 
 
+def _optionalInt(data: dict[str, object], key: str) -> int | None:
+    value = data.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _hostFromToml(data: dict[str, object]) -> Host:
     identity = data.get("identity_file")
     rawTags = data.get("tags")
     tags = [str(tag) for tag in rawTags] if isinstance(rawTags, list) else []
+    rawCompression = data.get("compression")
     return Host(
+        serverAliveInterval=_optionalInt(data, "server_alive_interval"),
+        serverAliveCountMax=_optionalInt(data, "server_alive_count_max"),
+        compression=rawCompression if isinstance(rawCompression, bool) else None,
         name=str(data["name"]),
         hostname=str(data["hostname"]),
         user=str(data["user"]) if data.get("user") else None,
