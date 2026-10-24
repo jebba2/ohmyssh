@@ -8,8 +8,20 @@ from pathlib import Path
 import pytest
 
 from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host, parseSshConfig
+from pyommyssh.core.hosts import GlobalSettings, Host, parseSshConfig
 from pyommyssh.core.sshconfig import MAX_BACKUPS, SshConfigEditor, SshConfigError
+
+JEB_LAYOUT = (
+    "Host *\n"
+    "    ServerAliveInterval 60\n"
+    "    ServerAliveCountMax 3\n"
+    "    IdentityFile ~/.ssh/id_rsa\n"
+    "    Compression yes\n"
+    "    AddKeysToAgent yes\n"
+    "\n"
+    "Host web\n"
+    "    HostName w.local\n"
+)
 
 
 def _editor(tmp_path: Path, text: str | None = None) -> tuple[SshConfigEditor, Path]:
@@ -201,3 +213,79 @@ def test_new_config_file_is_private(tmp_path: Path) -> None:
     editor, configPath = _editor(tmp_path)
     editor.upsertHost(Host(name="web", hostname="w.local"))
     assert configPath.stat().st_mode & 0o777 == 0o600
+
+
+def test_global_settings_are_read_from_the_host_star_block(tmp_path: Path) -> None:
+    editor, _ = _editor(tmp_path, JEB_LAYOUT)
+    assert editor.globalSettings() == GlobalSettings(
+        serverAliveInterval=60,
+        serverAliveCountMax=3,
+        identityFile=tmp_path / ".ssh" / "id_rsa",
+        compression=True,
+    )
+    bare, _ = _editor(tmp_path, EXISTING)
+    assert bare.globalSettings() == GlobalSettings()
+    missing = SshConfigEditor(tmp_path / "nope" / "config", home=tmp_path)
+    assert missing.globalSettings() == GlobalSettings()
+
+
+def test_saving_global_settings_creates_a_host_star_block_at_the_end(tmp_path: Path) -> None:
+    editor, configPath = _editor(tmp_path, "Host web\n    HostName w.local\n")
+    editor.upsertGlobal(GlobalSettings(serverAliveInterval=60, serverAliveCountMax=3, compression=True))
+    assert configPath.read_text() == (
+        "Host web\n"
+        "    HostName w.local\n"
+        "\n"
+        "Host *\n"
+        "    ServerAliveInterval 60\n"
+        "    ServerAliveCountMax 3\n"
+        "    Compression yes\n"
+    )
+    assert editor.globalSettings() == GlobalSettings(serverAliveInterval=60, serverAliveCountMax=3, compression=True)
+
+
+def test_saving_global_settings_moves_a_top_block_to_the_end_and_keeps_its_other_lines(tmp_path: Path) -> None:
+    editor, configPath = _editor(tmp_path, JEB_LAYOUT)
+    editor.upsertGlobal(
+        GlobalSettings(serverAliveInterval=30, identityFile=tmp_path / ".ssh" / "id_rsa", compression=False)
+    )
+    assert configPath.read_text() == (
+        "Host web\n"
+        "    HostName w.local\n"
+        "\n"
+        "Host *\n"
+        "    ServerAliveInterval 30\n"
+        "    IdentityFile ~/.ssh/id_rsa\n"
+        "    Compression no\n"
+        "    AddKeysToAgent yes\n"
+    )
+    # Hosts are unaffected by the move.
+    assert [host.name for host in editor.hosts()] == ["web"]
+
+
+def test_saving_global_settings_leaves_a_block_already_at_the_end_in_place(tmp_path: Path) -> None:
+    text = "Host web\n    HostName w.local\n\n# defaults\nHost *\n    Compression yes\n"
+    editor, configPath = _editor(tmp_path, text)
+    editor.upsertGlobal(GlobalSettings(compression=True, serverAliveInterval=15))
+    assert configPath.read_text() == (
+        "Host web\n    HostName w.local\n\n# defaults\nHost *\n    ServerAliveInterval 15\n    Compression yes\n"
+    )
+
+
+def test_host_keepalive_and_compression_lines_are_managed(tmp_path: Path) -> None:
+    editor, configPath = _editor(tmp_path)
+    host = Host(name="web", hostname="w.local", serverAliveInterval=30, serverAliveCountMax=5, compression=True)
+    editor.upsertHost(host)
+    assert configPath.read_text() == (
+        "Host web\n"
+        "    HostName w.local\n"
+        "    ServerAliveInterval 30\n"
+        "    ServerAliveCountMax 5\n"
+        "    Compression yes\n"
+    )
+    saved = editor.hosts()[0]
+    assert (saved.serverAliveInterval, saved.serverAliveCountMax, saved.compression) == (30, 5, True)
+    editor.upsertHost(Host(name="web", hostname="w.local", compression=False))
+    assert configPath.read_text() == "Host web\n    HostName w.local\n    Compression no\n"
+    editor.upsertHost(Host(name="web", hostname="w.local"))
+    assert configPath.read_text() == "Host web\n    HostName w.local\n"

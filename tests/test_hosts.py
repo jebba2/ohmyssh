@@ -7,9 +7,12 @@ import pytest
 
 from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import (
+    EffectiveSettings,
+    GlobalSettings,
     Host,
     HostSource,
     HostStore,
+    effectiveSettings,
     loadSshConfig,
     mergeHosts,
     parseSshConfig,
@@ -313,3 +316,52 @@ def test_host_has_forwards() -> None:
     assert not Host(name="a", hostname="a.local").hasForwards()
     forward = PortForward.parse(ForwardKind.DYNAMIC, "1080")
     assert Host(name="a", hostname="a.local", forwards=[forward]).hasForwards()
+
+
+def test_parser_reads_keepalive_and_compression(tmp_path: Path) -> None:
+    text = (
+        "Host a\n    ServerAliveInterval 30\n    ServerAliveCountMax 5\n    Compression yes\n"
+        "Host b\n    Compression no\n    ServerAliveInterval soon\n"
+        "Host c\n"
+    )
+    hosts = parseSshConfig(text, home=tmp_path)
+    assert (hosts[0].serverAliveInterval, hosts[0].serverAliveCountMax, hosts[0].compression) == (30, 5, True)
+    assert (hosts[1].serverAliveInterval, hosts[1].compression) == (None, False)
+    assert (hosts[2].serverAliveInterval, hosts[2].serverAliveCountMax, hosts[2].compression) == (None, None, None)
+
+
+def test_host_store_round_trips_keepalive_and_compression(tmp_path: Path) -> None:
+    storePath = tmp_path / "hosts.toml"
+    store = HostStore(storePath)
+    store.add(Host(name="a", hostname="a.local", serverAliveInterval=30, serverAliveCountMax=5, compression=False))
+    store.add(Host(name="b", hostname="b.local"))
+    store.save()
+    with storePath.open("rb") as handle:
+        written = tomllib.load(handle)["hosts"]
+    assert (written[0]["server_alive_interval"], written[0]["server_alive_count_max"], written[0]["compression"]) == (
+        30, 5, False,
+    )
+    assert "compression" not in written[1] and "server_alive_interval" not in written[1]
+    reloaded = HostStore(storePath)
+    reloaded.load()
+    assert reloaded.hosts()[0].serverAliveInterval == 30
+    assert reloaded.hosts()[0].serverAliveCountMax == 5
+    assert reloaded.hosts()[0].compression is False
+    assert reloaded.hosts()[1].compression is None
+
+
+def test_effective_settings_prefer_the_host_then_the_global_block(tmp_path: Path) -> None:
+    globalSettings = GlobalSettings(
+        serverAliveInterval=60, serverAliveCountMax=3, identityFile=tmp_path / "id_rsa", compression=True
+    )
+    plain = Host(name="p", hostname="p")
+    assert effectiveSettings(plain, globalSettings) == EffectiveSettings(
+        keepaliveSeconds=60, identityFile=tmp_path / "id_rsa", compression=True
+    )
+    tuned = Host(name="t", hostname="t", identityFile=tmp_path / "own", serverAliveInterval=15, compression=False)
+    assert effectiveSettings(tuned, globalSettings) == EffectiveSettings(
+        keepaliveSeconds=15, identityFile=tmp_path / "own", compression=False
+    )
+    assert effectiveSettings(plain, GlobalSettings()) == EffectiveSettings(
+        keepaliveSeconds=None, identityFile=None, compression=False
+    )
