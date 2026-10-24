@@ -6,23 +6,35 @@ through ``feed`` and sends the bytes from ``inputBytes`` to the remote side.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QRect, QSize, Qt, Signal
+import time
+
+from PySide6.QtCore import QPoint, QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
     QColor,
+    QContextMenuEvent,
     QFont,
     QFontMetrics,
     QGuiApplication,
     QKeyEvent,
     QKeySequence,
+    QMouseEvent,
     QPainter,
     QPaintEvent,
     QResizeEvent,
     QWheelEvent,
 )
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QApplication, QMenu, QWidget
 from pyte.screens import Char
 
-from pyommyssh.core.terminal import TerminalSession, encodeKey
+from pyommyssh.core.terminal import (
+    SCROLLBACK_LINES,
+    CellPosition,
+    Selection,
+    TerminalSession,
+    encodeKey,
+    selectedText,
+    wordSpanAt,
+)
 
 DEFAULT_COLS = 80
 DEFAULT_ROWS = 24
@@ -30,6 +42,8 @@ WHEEL_LINES_PER_STEP = 3
 
 DEFAULT_FOREGROUND = QColor("#d4d4d4")
 DEFAULT_BACKGROUND = QColor("#1e1e1e")
+SELECTION_FOREGROUND = QColor("#ffffff")
+SELECTION_BACKGROUND = QColor("#264f78")
 
 _NAMED_COLORS: dict[str, QColor] = {
     "black": QColor("#000000"),
@@ -86,6 +100,13 @@ class TerminalWidget(QWidget):
         super().__init__(parent)
         self.session = TerminalSession(DEFAULT_COLS, DEFAULT_ROWS)
         self._scrollOffset = 0
+        self._selection: Selection | None = None
+        self._anchor = CellPosition(0, 0)
+        self._dragging = False
+        self._dragMoved = False
+        self._clickCount = 0
+        self._lastClickTime = 0.0
+        self._lastClickCell = CellPosition(-1, -1)
         self._font = QFont("Consolas")
         self._font.setStyleHint(QFont.StyleHint.Monospace)
         self._font.setFixedPitch(True)
@@ -116,19 +137,133 @@ class TerminalWidget(QWidget):
         return self._scrollOffset
 
     def feed(self, data: bytes) -> None:
-        """Apply remote output and snap the view back to the live screen."""
+        """Apply remote output and snap the view back to the live screen.
+
+        A selection stays on its lines because they keep their place in the
+        buffer, except when full scrollback starts dropping old lines.
+        """
+        historyWasFull = len(self.session.scrollbackLines()) >= SCROLLBACK_LINES
         self.session.feed(data)
         self._scrollOffset = 0
+        if historyWasFull:
+            self._selection = None
         self.update()
+
+    def bufferLines(self) -> list[str]:
+        """Scrollback followed by the live screen; selections index into this."""
+        return self.session.scrollbackLines() + self.session.lines()
+
+    def _viewTop(self) -> int:
+        """The buffer row shown at the top of the widget."""
+        rows = self.session.size()[1]
+        return max(0, len(self.bufferLines()) - self._scrollOffset - rows)
 
     def visibleLines(self) -> list[str]:
         """Return the rows currently shown, honoring the scrollback offset."""
         if self._scrollOffset == 0:
             return self.session.lines()
-        combined = self.session.scrollbackLines() + self.session.lines()
+        combined = self.bufferLines()
         rows = self.session.size()[1]
         end = len(combined) - self._scrollOffset
         return combined[max(0, end - rows) : end]
+
+    # Selection
+
+    def cellAtPoint(self, point: QPoint) -> tuple[int, int]:
+        """The buffer row and column under a widget position, clamped to the grid."""
+        cols, rows = self.session.size()
+        col = max(0, min(cols - 1, point.x() // self._cellWidth))
+        row = max(0, min(rows - 1, point.y() // self._cellHeight))
+        return self._viewTop() + row, col
+
+    def selectedText(self) -> str:
+        """The selected text, or an empty string."""
+        if self._selection is None:
+            return ""
+        return selectedText(self.bufferLines(), self._selection)
+
+    def copySelection(self) -> bool:
+        """Put the selection on the clipboard; False when nothing is selected."""
+        text = self.selectedText()
+        if not text:
+            return False
+        QGuiApplication.clipboard().setText(text)
+        return True
+
+    def clearSelection(self) -> None:
+        """Drop the selection."""
+        if self._selection is not None:
+            self._selection = None
+            self.update()
+
+    def _setSelection(self, selection: Selection | None) -> None:
+        self._selection = selection
+        self.update()
+
+    def _isRepeatClick(self, cell: CellPosition) -> bool:
+        interval = QApplication.doubleClickInterval() / 1000.0
+        return cell == self._lastClickCell and time.monotonic() - self._lastClickTime <= interval
+
+    def _noteClick(self, cell: CellPosition, count: int) -> None:
+        self._lastClickCell = cell
+        self._lastClickTime = time.monotonic()
+        self._clickCount = count
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mousePressEvent(event)
+            return
+        row, col = self.cellAtPoint(event.position().toPoint())
+        cell = CellPosition(row, col)
+        if self._clickCount == 2 and self._isRepeatClick(cell):
+            # Third click in a row selects the whole line.
+            line = self.bufferLines()[row] if row < len(self.bufferLines()) else ""
+            self._setSelection(Selection(CellPosition(row, 0), CellPosition(row, max(0, len(line.rstrip()) - 1))))
+            self._noteClick(cell, 0)
+            return
+        self._anchor = cell
+        self._dragging = True
+        self._dragMoved = False
+        self._noteClick(cell, 1)
+        self._setSelection(None)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() != Qt.MouseButton.LeftButton:
+            super().mouseDoubleClickEvent(event)
+            return
+        row, col = self.cellAtPoint(event.position().toPoint())
+        lines = self.bufferLines()
+        line = lines[row] if row < len(lines) else ""
+        start, end = wordSpanAt(line, col)
+        self._dragging = False
+        self._noteClick(CellPosition(row, col), 2)
+        if end > start:
+            self._setSelection(Selection(CellPosition(row, start), CellPosition(row, end - 1)))
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if not self._dragging:
+            super().mouseMoveEvent(event)
+            return
+        row, col = self.cellAtPoint(event.position().toPoint())
+        focus = CellPosition(row, col)
+        if focus != self._anchor:
+            self._dragMoved = True
+        self._setSelection(Selection(self._anchor, focus))
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self._dragging:
+            self._dragging = False
+            if not self._dragMoved:
+                self._setSelection(None)
+            return
+        super().mouseReleaseEvent(event)
+
+    def contextMenuEvent(self, event: QContextMenuEvent) -> None:
+        menu = QMenu(self)
+        copyAction = menu.addAction("Copy", self.copySelection)
+        copyAction.setEnabled(self._selection is not None)
+        menu.addAction("Paste", self.pasteClipboard)
+        menu.exec(event.globalPos())
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
@@ -153,6 +288,14 @@ class TerminalWidget(QWidget):
             return True
         return event.key() == Qt.Key.Key_Insert and modifiers == Qt.KeyboardModifier.ShiftModifier
 
+    def _isCopy(self, event: QKeyEvent) -> bool:
+        """Ctrl+Shift+C or Ctrl+Insert; plain Ctrl+C stays the interrupt."""
+        modifiers = event.modifiers()
+        ctrlShift = Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        if event.key() == Qt.Key.Key_C and modifiers == ctrlShift:
+            return True
+        return event.key() == Qt.Key.Key_Insert and modifiers == Qt.KeyboardModifier.ControlModifier
+
     def pasteClipboard(self) -> None:
         """Send the clipboard text with line endings the shell expects."""
         text = QGuiApplication.clipboard().text()
@@ -164,6 +307,10 @@ class TerminalWidget(QWidget):
         return False
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
+        if self._isCopy(event):
+            self.copySelection()
+            event.accept()
+            return
         if self._isPaste(event):
             self.pasteClipboard()
             return
@@ -219,13 +366,33 @@ class TerminalWidget(QWidget):
             painter.setPen(DEFAULT_FOREGROUND)
             painter.drawRect(rect.adjusted(0, 0, -1, -1))
 
+    def _paintSelection(self, painter: QPainter, row: int, rowText: str) -> None:
+        """Highlight the selected part of a visible row, if any."""
+        if self._selection is None:
+            return
+        cols = self.session.size()[0]
+        span = self._selection.columnSpan(self._viewTop() + row, cols)
+        if span is None or span[1] <= span[0]:
+            return
+        first, last = span
+        y = row * self._cellHeight
+        painter.fillRect(first * self._cellWidth, y, (last - first) * self._cellWidth, self._cellHeight, SELECTION_BACKGROUND)
+        self._font.setBold(False)
+        self._font.setItalic(False)
+        self._font.setUnderline(False)
+        painter.setFont(self._font)
+        painter.setPen(SELECTION_FOREGROUND)
+        painter.drawText(first * self._cellWidth, y + self._ascent, rowText[first:last])
+
     def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), DEFAULT_BACKGROUND)
         cols, rows = self.session.size()
         if self._scrollOffset == 0:
             for row in range(rows):
-                self._paintRow(painter, row, [self.session.cellAt(col, row) for col in range(cols)])
+                cells = [self.session.cellAt(col, row) for col in range(cols)]
+                self._paintRow(painter, row, cells)
+                self._paintSelection(painter, row, "".join(cell.data for cell in cells))
             if not self.session.cursorHidden():
                 self._paintCursor(painter)
         else:
@@ -233,9 +400,11 @@ class TerminalWidget(QWidget):
             self._font.setItalic(False)
             self._font.setUnderline(False)
             painter.setFont(self._font)
-            painter.setPen(DEFAULT_FOREGROUND)
             for row, line in enumerate(self.visibleLines()):
+                painter.setPen(DEFAULT_FOREGROUND)
+                painter.setFont(self._font)
                 painter.drawText(0, row * self._cellHeight + self._ascent, line)
+                self._paintSelection(painter, row, line)
         painter.end()
 
 

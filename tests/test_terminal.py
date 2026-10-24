@@ -1,6 +1,13 @@
 """Tests for the terminal emulation session and keyboard encoding."""
 
-from pyommyssh.core.terminal import TerminalSession, encodeKey
+from pyommyssh.core.terminal import (
+    CellPosition,
+    Selection,
+    TerminalSession,
+    encodeKey,
+    selectedText,
+    wordSpanAt,
+)
 
 
 def test_feed_plain_text_appears_on_screen() -> None:
@@ -121,3 +128,36 @@ def test_encode_unknown_key_yields_nothing() -> None:
     assert encodeKey("Shift") == b""
     assert encodeKey("Control", ctrl=True) == b""
     assert encodeKey("CapsLock") == b""
+
+
+def test_selection_orders_its_ends_and_spans_rows() -> None:
+    forward = Selection(CellPosition(1, 2), CellPosition(3, 4))
+    backward = Selection(CellPosition(3, 4), CellPosition(1, 2))
+    for selection in (forward, backward):
+        assert selection.start() == CellPosition(1, 2)
+        assert selection.end() == CellPosition(3, 4)
+        assert selection.columnSpan(0, 10) is None
+        assert selection.columnSpan(1, 10) == (2, 10)
+        assert selection.columnSpan(2, 10) == (0, 10)
+        assert selection.columnSpan(3, 10) == (0, 5)
+        assert selection.columnSpan(4, 10) is None
+    single = Selection(CellPosition(2, 7), CellPosition(2, 3))
+    assert single.columnSpan(2, 10) == (3, 8)
+
+
+def test_selected_text_trims_padding_and_joins_rows() -> None:
+    lines = ["first line   ", "   second", "third     ", "fourth"]
+    assert selectedText(lines, Selection(CellPosition(0, 6), CellPosition(0, 9))) == "line"
+    assert selectedText(lines, Selection(CellPosition(0, 6), CellPosition(2, 2))) == "line\n   second\nthi"
+    assert selectedText(lines, Selection(CellPosition(1, 0), CellPosition(2, 20))) == "   second\nthird"
+    assert selectedText(lines, Selection(CellPosition(9, 0), CellPosition(9, 3))) == ""
+
+
+def test_word_span_at_covers_the_run_under_the_column() -> None:
+    line = "ls -la /home/jeb  done"
+    assert wordSpanAt(line, 0) == (0, 2)
+    assert wordSpanAt(line, 4) == (3, 6)
+    assert wordSpanAt(line, 9) == (7, 16)
+    assert wordSpanAt(line, 17) == (16, 18)  # the gap between words
+    assert wordSpanAt(line, 50) == (22, 22)
+    assert wordSpanAt("", 0) == (0, 0)

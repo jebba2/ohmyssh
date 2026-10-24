@@ -129,3 +129,101 @@ def test_visible_lines_match_session_when_not_scrolled(qtbot: QtBot) -> None:
     qtbot.addWidget(widget)
     widget.feed(b"abc")
     assert widget.visibleLines() == widget.session.lines()
+
+
+def _shownTerminal(qtbot: QtBot, cols: int = 40, rows: int = 5) -> TerminalWidget:
+    widget = TerminalWidget()
+    qtbot.addWidget(widget)
+    widget.show()
+    cellWidth, cellHeight = widget.cellSize()
+    widget.resize(cellWidth * cols, cellHeight * rows)
+    qtbot.waitExposed(widget)
+    return widget
+
+
+def _cellCenter(widget: TerminalWidget, row: int, col: int) -> QPoint:
+    cellWidth, cellHeight = widget.cellSize()
+    return QPoint(col * cellWidth + cellWidth // 2, row * cellHeight + cellHeight // 2)
+
+
+def _drag(widget: TerminalWidget, qtbot: QtBot, start: tuple[int, int], end: tuple[int, int]) -> None:
+    qtbot.mousePress(widget, Qt.MouseButton.LeftButton, pos=_cellCenter(widget, *start))
+    qtbot.mouseMove(widget, pos=_cellCenter(widget, *end))
+    qtbot.mouseRelease(widget, Qt.MouseButton.LeftButton, pos=_cellCenter(widget, *end))
+
+
+def test_drag_selects_cells_and_copy_shortcuts_copy_them(qtbot: QtBot) -> None:
+    widget = _shownTerminal(qtbot)
+    widget.feed(b"hello world\r\nsecond line")
+    assert widget.selectedText() == ""
+    _drag(widget, qtbot, (0, 6), (1, 5))
+    assert widget.selectedText() == "world\nsecond"
+
+    clipboard = QGuiApplication.clipboard()
+    clipboard.setText("")
+    qtbot.keyClick(widget, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+    assert clipboard.text() == "world\nsecond"
+    clipboard.setText("")
+    qtbot.keyClick(widget, Qt.Key.Key_Insert, Qt.KeyboardModifier.ControlModifier)
+    assert clipboard.text() == "world\nsecond"
+
+    # Ctrl+C is still the interrupt and never touches the clipboard.
+    received = _collect(widget)
+    clipboard.setText("untouched")
+    qtbot.keyClick(widget, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier)
+    assert received == [b"\x03"]
+    assert clipboard.text() == "untouched"
+
+    qtbot.mouseClick(widget, Qt.MouseButton.LeftButton, pos=_cellCenter(widget, 0, 0))
+    assert widget.selectedText() == ""
+
+
+def test_backward_drag_and_copy_without_a_selection(qtbot: QtBot) -> None:
+    widget = _shownTerminal(qtbot)
+    widget.feed(b"hello world")
+    _drag(widget, qtbot, (0, 10), (0, 6))
+    assert widget.selectedText() == "world"
+    assert widget.copySelection()
+    widget.clearSelection()
+    assert widget.selectedText() == ""
+    assert not widget.copySelection()
+    received = _collect(widget)
+    QGuiApplication.clipboard().setText("kept")
+    qtbot.keyClick(widget, Qt.Key.Key_C, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+    assert received == []
+    assert QGuiApplication.clipboard().text() == "kept"
+
+
+def test_double_click_selects_a_word_and_triple_click_a_line(qtbot: QtBot) -> None:
+    widget = _shownTerminal(qtbot)
+    widget.feed(b"ls -la /home/jeb")
+    qtbot.mouseDClick(widget, Qt.MouseButton.LeftButton, pos=_cellCenter(widget, 0, 9))
+    assert widget.selectedText() == "/home/jeb"
+    qtbot.mouseClick(widget, Qt.MouseButton.LeftButton, pos=_cellCenter(widget, 0, 9))
+    assert widget.selectedText() == "ls -la /home/jeb"
+
+
+def test_selection_stays_on_its_lines_while_scrolling_and_during_output(qtbot: QtBot) -> None:
+    widget = _shownTerminal(qtbot)
+    widget.feed(b"\r\n".join(f"line{i}".encode() for i in range(20)))
+    assert widget.visibleLines()[2].startswith("line17")
+    _drag(widget, qtbot, (2, 0), (2, 5))
+    assert widget.selectedText() == "line17"
+
+    _wheel(widget, 1)
+    assert widget.visibleLines()[0].startswith("line12")
+    assert widget.selectedText() == "line17"
+
+    widget.feed(b"\r\nline20")
+    assert widget.scrollOffset() == 0
+    assert widget.selectedText() == "line17"
+
+
+def test_selecting_in_a_scrolled_back_view_reads_history(qtbot: QtBot) -> None:
+    widget = _shownTerminal(qtbot)
+    widget.feed(b"\r\n".join(f"line{i}".encode() for i in range(20)))
+    _wheel(widget, 10)
+    assert widget.visibleLines()[0].startswith("line0")
+    _drag(widget, qtbot, (1, 0), (3, 5))
+    assert widget.selectedText() == "line1\nline2\nline3"
+    assert widget.cellAtPoint(_cellCenter(widget, 1, 3)) == (1, 3)

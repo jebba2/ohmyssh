@@ -82,6 +82,11 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Resizing the window resizes the remote PTY (`tput cols` matches)
 - [ ] Mouse wheel scrolls back through history; new output snaps back to the bottom
 - [ ] `Ctrl+Shift+V` and `Shift+Insert` paste multi-line text with each line executed
+- [ ] Dragging across text highlights it; `Ctrl+Shift+C` and `Ctrl+Insert` copy it with trailing padding removed and one line per row
+- [ ] Double-click selects the word under the pointer; a third click selects the whole line
+- [ ] Right-click offers Copy (only with a selection) and Paste
+- [ ] A selection stays on the same text while scrolling back with the wheel and while new output scrolls the screen; a plain click clears it
+- [ ] `Ctrl+C` with a selection still interrupts the running program and leaves the clipboard alone
 - [ ] `exit` in the shell shows "Connection closed" and renames the tab "(closed)"
 - [ ] Closing the tab with its X closes the channel; the Dashboard tab has no X
 - [ ] Two tabs on the same host share one SSH connection (one login line in the server's auth log)

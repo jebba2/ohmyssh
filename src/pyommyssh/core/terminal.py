@@ -7,6 +7,8 @@ turns a named key press into the bytes a VT100-style terminal would send.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pyte
 from pyte.screens import Char
 
@@ -165,3 +167,64 @@ def encodeKey(
     if encoded is None:
         return b""
     return b"\x1b" + encoded if alt else encoded
+
+
+@dataclass(frozen=True)
+class CellPosition:
+    """A cell in the combined scrollback-plus-screen buffer: absolute row, column."""
+
+    row: int
+    col: int
+
+
+@dataclass(frozen=True)
+class Selection:
+    """The cells between two positions, both included, in either order."""
+
+    anchor: CellPosition
+    focus: CellPosition
+
+    def start(self) -> CellPosition:
+        """The earlier of the two ends."""
+        return min(self.anchor, self.focus, key=lambda p: (p.row, p.col))
+
+    def end(self) -> CellPosition:
+        """The later of the two ends."""
+        return max(self.anchor, self.focus, key=lambda p: (p.row, p.col))
+
+    def columnSpan(self, row: int, lineLength: int) -> tuple[int, int] | None:
+        """The selected columns on ``row`` as a half-open range, or None if the row is outside."""
+        start, end = self.start(), self.end()
+        if row < start.row or row > end.row:
+            return None
+        first = start.col if row == start.row else 0
+        last = end.col + 1 if row == end.row else lineLength
+        return first, last
+
+
+def selectedText(lines: list[str], selection: Selection) -> str:
+    """The text a selection covers, one line per row, with the padding terminals add removed."""
+    start, end = selection.start(), selection.end()
+    parts: list[str] = []
+    for row in range(start.row, end.row + 1):
+        if row >= len(lines):
+            break
+        line = lines[row]
+        span = selection.columnSpan(row, len(line))
+        if span is not None:
+            parts.append(line[span[0] : span[1]].rstrip())
+    return "\n".join(parts)
+
+
+def wordSpanAt(line: str, col: int) -> tuple[int, int]:
+    """The half-open run of non-space (or space) characters around ``col``."""
+    if col >= len(line):
+        return len(line), len(line)
+    isSpace = line[col].isspace()
+    start = col
+    while start > 0 and line[start - 1].isspace() == isSpace:
+        start -= 1
+    end = col + 1
+    while end < len(line) and line[end].isspace() == isSpace:
+        end += 1
+    return start, end
