@@ -1,3 +1,5 @@
+<p align="center"><img src="src/pyommyssh/ui/icons/app.svg" width="128" alt="pyommyssh logo: a padlock over the letters ssh"></p>
+
 # pyommyssh
 
 A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an SSH client with a live server dashboard, built with PySide6 (Qt), paramiko, and pyte. It runs from source on Windows, macOS, and Linux, and can be packaged as a standalone Windows executable with PyInstaller.
@@ -141,7 +143,7 @@ Logs go to `working/logs/pyommyssh.log` under the project root when running from
 uv run python scripts/build_windows.py
 ```
 
-That produces `dist/pyommyssh/pyommyssh.exe` with its support files beside it. Add `--onefile` for a single `dist/pyommyssh.exe`, and `--clean` to discard PyInstaller's cache. The full build log is in `working/build/pyinstaller.log`.
+That produces `dist/pyommyssh/pyommyssh.exe` with its support files beside it, using `src/pyommyssh/ui/icons/app.ico` as the executable's icon. After changing the logo in `app.svg`, regenerate the `.ico` with `uv run python scripts/build_icon.py` and commit it; `--png working/preview.png` also writes a preview to look at. Add `--onefile` for a single `dist/pyommyssh.exe`, and `--clean` to discard PyInstaller's cache. The full build log is in `working/build/pyinstaller.log`.
 
 One-directory builds start faster and are less likely to be quarantined by antivirus software than one-file builds, which unpack to a temp directory on every launch.
 

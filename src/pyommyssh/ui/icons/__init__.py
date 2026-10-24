@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtGui import QIcon
 
 ICON_DIR = Path(__file__).resolve().parent
-ICON_NAMES: frozenset[str] = frozenset({"terminal", "edit", "key", "folder"})
+ICON_NAMES: frozenset[str] = frozenset({"terminal", "edit", "key", "folder", "app"})
 
 
 def iconPath(name: str) -> Path:

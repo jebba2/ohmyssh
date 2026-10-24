@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from pyommyssh.core.config import AppPaths, AppSettings, loadSettings
 from pyommyssh.core.hosts import HostStore
 from pyommyssh.core.sshconfig import SshConfigEditor
+from pyommyssh.ui.icons import loadIcon
 from pyommyssh.ui.mainWindow import MainWindow
 from pyommyssh.ui.theme import DARK_STYLESHEET
 
@@ -37,6 +38,7 @@ def main() -> int:
     configureLogging(paths.logFile)
     app = QApplication(sys.argv)
     app.setApplicationName("pyommyssh")
+    app.setWindowIcon(loadIcon("app"))
     app.setStyleSheet(DARK_STYLESHEET)
 
     try:

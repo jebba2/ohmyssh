@@ -11,6 +11,9 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 - [x] `uv run pyommyssh` opens the main window with a Dashboard tab
 - [ ] `uv run python -m pyommyssh` does the same
+- [ ] The window title bar and the taskbar show the padlock-over-"ssh" logo on a teal-to-blue tile
+- [ ] The packaged `pyommyssh.exe` shows the same icon in Explorer and the taskbar
+- [x] `uv run python scripts/build_icon.py` regenerates `app.ico` with seven sizes and prints what it wrote
 - [x] `working/logs/pyommyssh.log` is created and records the host counts loaded
 
 ## Hosts

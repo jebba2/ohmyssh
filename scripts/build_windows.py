@@ -52,6 +52,8 @@ def pyinstallerCommand(oneFile: bool, clean: bool) -> list[str]:
         str(DIST_DIR),
         "--add-data",
         f"{ICON_DIR}{os.pathsep}pyommyssh/ui/icons",
+        "--icon",
+        str(ICON_DIR / "app.ico"),
     ]
     if oneFile:
         command.append("--onefile")
