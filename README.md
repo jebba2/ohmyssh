@@ -50,6 +50,8 @@ or
 uv run python -m pyommyssh
 ```
 
+On Windows the app registers its own taskbar identity at startup, so the taskbar shows the pyommyssh logo rather than Python's icon even when run from source.
+
 ### Keyboard shortcuts
 
 | Shortcut | Action |

@@ -18,8 +18,28 @@ from pyommyssh.ui.theme import DARK_STYLESHEET
 
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUPS = 3
+# Windows groups taskbar buttons by this ID; without our own, a run from
+# source is grouped under python.exe and shows Python's icon.
+APP_USER_MODEL_ID = "pyommyssh.desktop"
 
 logger = logging.getLogger(__name__)
+
+
+def registerWindowsAppId() -> bool:
+    """Give the process its own taskbar identity on Windows so the taskbar shows our icon.
+
+    Returns False on other platforms or if Windows refuses, which is not fatal.
+    """
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    try:
+        result = ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(APP_USER_MODEL_ID)
+    except (AttributeError, OSError) as error:
+        logger.warning("Could not set the Windows app id: %s", error)
+        return False
+    return result == 0
 
 
 def configureLogging(logFile: Path) -> None:
@@ -36,6 +56,7 @@ def main() -> int:
     """Run the GUI and return the process exit code."""
     paths = AppPaths.default()
     configureLogging(paths.logFile)
+    registerWindowsAppId()
     app = QApplication(sys.argv)
     app.setApplicationName("pyommyssh")
     app.setWindowIcon(loadIcon("app"))
