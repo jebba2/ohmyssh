@@ -52,6 +52,10 @@ class Host:
     tags: list[str] = field(default_factory=list)
     forwards: list[PortForward] = field(default_factory=list)
     source: HostSource = HostSource.SSH_CONFIG
+    # For SSH config hosts: the file the Host block lives in, and the other
+    # names on the same Host line, which share every directive with this one.
+    sourceFile: Path | None = None
+    sharedWith: list[str] = field(default_factory=list)
 
     def hasForwards(self) -> bool:
         """Return True when the host defines at least one port forward."""
@@ -75,6 +79,23 @@ def _stripComment(line: str) -> str:
 
 
 _DIRECTIVE_PATTERN = re.compile(r"^(\S+?)\s*(?:=\s*|\s+)(.*)$")
+# A comment the app writes to keep its tags inside a Host block; ssh ignores it.
+TAGS_COMMENT_PATTERN = re.compile(r"^\s*#\s*tags:\s*(.*)$", re.IGNORECASE)
+
+
+def _unquote(value: str) -> str:
+    """Strip one pair of surrounding double quotes, as OpenSSH does for a single value."""
+    if len(value) >= 2 and value[0] == '"' and value[-1] == '"':
+        return value[1:-1]
+    return value
+
+
+def parseTagsComment(line: str) -> list[str] | None:
+    """Return the tags in a ``# tags: a, b`` comment, or None for any other line."""
+    match = TAGS_COMMENT_PATTERN.match(line)
+    if match is None:
+        return None
+    return [tag for tag in re.split(r"[\s,]+", match.group(1).strip()) if tag]
 
 
 def _splitDirective(line: str) -> tuple[str, str] | None:
@@ -96,6 +117,7 @@ def _expandHome(value: str, home: Path) -> Path:
 
 def _applyDirective(hosts: list[Host], keyword: str, value: str, home: Path) -> None:
     """Apply a directive to every host from the current Host line."""
+    value = _unquote(value)
     for host in hosts:
         if keyword == "hostname":
             host.hostname = value
@@ -166,6 +188,7 @@ def _parseLines(
     baseDir: Path,
     depth: int,
     visited: set[Path],
+    sourceFile: Path | None = None,
 ) -> list[Host]:
     """Parse config text, recursing into Include files up to MAX_INCLUDE_DEPTH."""
     hosts: list[Host] = []
@@ -173,6 +196,12 @@ def _parseLines(
     skippingBlock = False
 
     for line in text.splitlines():
+        tags = parseTagsComment(line)
+        if tags is not None:
+            if not skippingBlock:
+                for host in current:
+                    host.tags = list(tags)
+            continue
         parts = _splitDirective(line)
         if parts is None:
             continue
@@ -180,7 +209,10 @@ def _parseLines(
 
         if keyword == "host":
             patterns = [p for p in value.split() if not _isWildcard(p)]
-            current = [Host(name=p, hostname=p) for p in patterns]
+            current = [
+                Host(name=p, hostname=p, sourceFile=sourceFile, sharedWith=[q for q in patterns if q != p])
+                for p in patterns
+            ]
             hosts.extend(current)
             skippingBlock = not current
         elif keyword == "match":
@@ -201,7 +233,7 @@ def _loadFile(path: Path, home: Path, depth: int, visited: set[Path]) -> list[Ho
     if canonical in visited or not path.is_file():
         return []
     visited.add(canonical)
-    return _parseLines(path.read_text(encoding="utf-8"), home, path.parent, depth, visited)
+    return _parseLines(path.read_text(encoding="utf-8"), home, path.parent, depth, visited, sourceFile=path)
 
 
 def parseSshConfig(text: str, home: Path | None = None) -> list[Host]:

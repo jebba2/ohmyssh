@@ -67,6 +67,15 @@ def test_describe_is_compact() -> None:
     assert PortForward.parse(ForwardKind.LOCAL, "[::1]:8080:host:80").describe() == "L [::1]:8080 -> host:80"
 
 
+def test_config_directive_form() -> None:
+    assert PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80").configDirective() == "LocalForward 8080 localhost:80"
+    assert (
+        PortForward.parse(ForwardKind.REMOTE, "0.0.0.0:9000:[::1]:3000").configDirective()
+        == "RemoteForward 0.0.0.0:9000 [::1]:3000"
+    )
+    assert PortForward.parse(ForwardKind.DYNAMIC, "127.0.0.1:1080").configDirective() == "DynamicForward 127.0.0.1:1080"
+
+
 def test_local_bind_address_defaults_to_loopback() -> None:
     assert PortForward.parse(ForwardKind.LOCAL, "8080:localhost:80").listenAddress() == "127.0.0.1"
     assert PortForward.parse(ForwardKind.LOCAL, "0.0.0.0:8080:localhost:80").listenAddress() == "0.0.0.0"

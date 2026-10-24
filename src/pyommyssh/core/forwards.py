@@ -131,6 +131,17 @@ class PortForward:
             return ALL_INTERFACES
         return address
 
+    def configDirective(self) -> str:
+        """The rule as an ``~/.ssh/config`` line, e.g. ``LocalForward 8080 localhost:80``."""
+        keyword = {
+            ForwardKind.LOCAL: "LocalForward",
+            ForwardKind.REMOTE: "RemoteForward",
+            ForwardKind.DYNAMIC: "DynamicForward",
+        }[self.kind]
+        if self.kind == ForwardKind.DYNAMIC:
+            return f"{keyword} {self._listenSpec()}"
+        return f"{keyword} {self._listenSpec()} {_bracketed(self.remoteHost or '')}:{self.remotePort}"
+
     def describe(self) -> str:
         """A short label for the dashboard card."""
         listen = self._listenSpec()

@@ -279,6 +279,36 @@ def test_merge_hosts_drops_hidden_ssh_config_hosts_but_never_app_hosts() -> None
     assert [h.name for h in merged] == ["shown", "mine"]
 
 
+def test_parser_records_source_file_and_shared_names(tmp_path: Path) -> None:
+    sshDir = tmp_path / ".ssh"
+    (sshDir / "conf.d").mkdir(parents=True)
+    (sshDir / "conf.d" / "a.conf").write_text("Host inc\n    HostName inc.local\n")
+    (sshDir / "config").write_text("Host Hermes (jebba) extra\n    HostName h.local\nInclude conf.d/*.conf\n")
+    hosts = loadSshConfig(sshDir / "config", home=tmp_path)
+    byName = {host.name: host for host in hosts}
+    assert byName["Hermes"].sourceFile == sshDir / "config"
+    assert byName["Hermes"].sharedWith == ["(jebba)", "extra"]
+    assert byName["(jebba)"].sharedWith == ["Hermes", "extra"]
+    assert byName["inc"].sourceFile == sshDir / "conf.d" / "a.conf"
+    assert byName["inc"].sharedWith == []
+    assert parseSshConfig("Host solo\n", home=tmp_path)[0].sourceFile is None
+
+
+def test_parser_reads_tags_comments_and_quoted_values(tmp_path: Path) -> None:
+    text = (
+        "Host web\n"
+        "    HostName w.local\n"
+        '    IdentityFile "~/my keys/id"\n'
+        "    # tags: prod, web lab\n"
+        "    # just a comment\n"
+        "Host plain\n"
+    )
+    hosts = parseSshConfig(text, home=tmp_path)
+    assert hosts[0].tags == ["prod", "web", "lab"]
+    assert hosts[0].identityFile == tmp_path / "my keys" / "id"
+    assert hosts[1].tags == []
+
+
 def test_host_has_forwards() -> None:
     assert not Host(name="a", hostname="a.local").hasForwards()
     forward = PortForward.parse(ForwardKind.DYNAMIC, "1080")
