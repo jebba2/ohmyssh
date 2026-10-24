@@ -15,7 +15,7 @@ from pytestqt.qtbot import QtBot
 
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host, HostSource, HostStore
+from pyommyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore
 from pyommyssh.core.keys import KeyType, generateKeyPair, readPublicKey
 from pyommyssh.core.sshconfig import SshConfigEditor
 from pyommyssh.core.tunnel import TunnelState, TunnelStatus
@@ -311,6 +311,41 @@ def test_renaming_a_host_on_a_shared_line_keeps_the_other_alias(
     window.applyEdit(hermes, Host(name="hermes2", hostname="hermes.local", sourceFile=hermes.sourceFile))
     assert _configText(tmp_path) == "Host hermes2 (jebba)\n    HostName hermes.local\n"
     assert sorted(h.name for h in window.hosts()) == ["(jebba)", "hermes2"]
+
+
+def test_global_settings_are_saved_to_a_host_star_block_at_the_end(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    configPath = tmp_path / ".ssh" / "config"
+    configPath.parent.mkdir()
+    configPath.write_text("Host *\n    Compression yes\n\nHost web\n    HostName w.local\n")
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    assert window.settingsAction.text() == "Settings"
+    assert window.globalSettings() == GlobalSettings(compression=True)
+
+    window.saveGlobalSettings(GlobalSettings(serverAliveInterval=60, serverAliveCountMax=3, compression=True))
+    assert _configText(tmp_path) == (
+        "Host web\n    HostName w.local\n\nHost *\n    ServerAliveInterval 60\n    ServerAliveCountMax 3\n    Compression yes\n"
+    )
+    assert window.globalSettings() == GlobalSettings(serverAliveInterval=60, serverAliveCountMax=3, compression=True)
+    assert window.statusBar().currentMessage() == "Saved SSH defaults to ~/.ssh/config"
+    assert [h.name for h in window.hosts()] == ["web"]
+
+
+def test_global_settings_reach_new_connections(
+    qtbot: QtBot, sshServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    store.add(hostFor(sshServer))
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.saveGlobalSettings(GlobalSettings(identityFile=clientKeyFile, compression=True))
+    card = window.dashboard.cardFor("box")
+    assert card is not None
+    window.refreshAll()
+    qtbot.waitUntil(lambda: card.statusLabel.text() == "Online", timeout=WAIT_MS)
+    assert ("publickey", TEST_USER) in sshServer.authAttempts
 
 
 def test_failed_config_save_is_reported_and_changes_nothing(

@@ -21,6 +21,15 @@ from PySide6.QtWidgets import (
 
 from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource
+from pyommyssh.ui.globalSettingsDialog import (
+    MAX_COUNT,
+    MAX_SECONDS,
+    makeOptionalSpin,
+    makeTriStateCombo,
+    optionalInt,
+    setTriState,
+    triState,
+)
 
 FORWARD_FIELD_HEIGHT = 64
 SAVE_IN_SSH_CONFIG = "~/.ssh/config"
@@ -87,6 +96,10 @@ class HostDialog(QDialog):
         self.proxyJumpEdit = QLineEdit()
         self.tagsEdit = QLineEdit()
         self.tagsEdit.setPlaceholderText("comma separated")
+        self.keepaliveSpin = makeOptionalSpin("Use global", MAX_SECONDS)
+        self.keepaliveSpin.setSuffix(" s")
+        self.keepaliveCountSpin = makeOptionalSpin("Use global", MAX_COUNT)
+        self.compressionCombo = makeTriStateCombo(("Use global", "On", "Off"))
         self.localForwardsEdit = self._makeForwardEdit(ForwardKind.LOCAL)
         self.remoteForwardsEdit = self._makeForwardEdit(ForwardKind.REMOTE)
         self.dynamicForwardsEdit = self._makeForwardEdit(ForwardKind.DYNAMIC)
@@ -114,6 +127,9 @@ class HostDialog(QDialog):
         form.addRow("Identity file", identityRow)
         form.addRow("Proxy jump", self.proxyJumpEdit)
         form.addRow("Tags", self.tagsEdit)
+        form.addRow("Keepalive interval", self.keepaliveSpin)
+        form.addRow("Keepalive count", self.keepaliveCountSpin)
+        form.addRow("Compression", self.compressionCombo)
         form.addRow("Local forwards", self.localForwardsEdit)
         form.addRow("Remote forwards", self.remoteForwardsEdit)
         form.addRow("Dynamic forwards", self.dynamicForwardsEdit)
@@ -154,6 +170,11 @@ class HostDialog(QDialog):
         self.identityEdit.setText(str(host.identityFile) if host.identityFile else "")
         self.proxyJumpEdit.setText(host.proxyJump or "")
         self.tagsEdit.setText(", ".join(host.tags))
+        if host.serverAliveInterval is not None:
+            self.keepaliveSpin.setValue(host.serverAliveInterval)
+        if host.serverAliveCountMax is not None:
+            self.keepaliveCountSpin.setValue(host.serverAliveCountMax)
+        setTriState(self.compressionCombo, host.compression)
         for kind, edit in self._forwardEdits.items():
             edit.setPlainText("\n".join(f.spec() for f in host.forwards if f.kind == kind))
 
@@ -223,4 +244,7 @@ class HostDialog(QDialog):
             source=HostSource.SSH_CONFIG if self.saveToSshConfig() else HostSource.APP,
             sourceFile=original.sourceFile if original is not None else None,
             sharedWith=list(original.sharedWith) if original is not None else [],
+            serverAliveInterval=optionalInt(self.keepaliveSpin),
+            serverAliveCountMax=optionalInt(self.keepaliveCountSpin),
+            compression=triState(self.compressionCombo),
         )

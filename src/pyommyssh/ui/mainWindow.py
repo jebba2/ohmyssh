@@ -23,13 +23,14 @@ from PySide6.QtWidgets import (
 
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host, HostSource, HostStore, mergeHosts
+from pyommyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore, mergeHosts
 from pyommyssh.core.keys import KeyGenerateRequest, readPublicKey
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
 from pyommyssh.core.sshconfig import SshConfigEditor, SshConfigError
 from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
 from pyommyssh.ui.dashboard import DashboardView
+from pyommyssh.ui.globalSettingsDialog import GlobalSettingsDialog
 from pyommyssh.ui.hostDialog import HostDialog
 from pyommyssh.ui.keyGenerateDialog import KeyGenerateDialog
 from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
@@ -78,7 +79,7 @@ class MainWindow(QMainWindow):
         self._hostStore = hostStore
         self._sshConfig = sshConfig
         self._sshConfigHosts = self._loadSshConfigHosts()
-        self._pool = ConnectionPool(self.hosts, knownHostsPath)
+        self._pool = ConnectionPool(self.hosts, knownHostsPath, globalSettingsProvider=self.globalSettings)
         self._passwordPrompt = passwordPrompt or askPasswordWithDialog(self)
         # The questions SFTP tabs ask (replace, name, confirm); tests swap in canned answers.
         self.sftpPrompts = dialogSftpPrompts(self)
@@ -144,12 +145,17 @@ class MainWindow(QMainWindow):
         self.generateKeyAction.setShortcut(QKeySequence("Ctrl+G"))
         self.generateKeyAction.triggered.connect(self._generateKeyDialog)
 
+        self.settingsAction = QAction("Settings", self)
+        self.settingsAction.setShortcut(QKeySequence("Ctrl+,"))
+        self.settingsAction.triggered.connect(self._globalSettingsDialog)
+
         for action in (
             self.addHostAction,
             self.refreshAction,
             self.groupByTagAction,
             self.searchAction,
             self.generateKeyAction,
+            self.settingsAction,
         ):
             toolbar.addAction(action)
 
@@ -172,6 +178,32 @@ class MainWindow(QMainWindow):
         except OSError as error:
             logger.warning("Could not read %s: %s", self._sshConfig.path, error)
             return []
+
+    def globalSettings(self) -> GlobalSettings:
+        """The Host * defaults; an unreadable config counts as no defaults."""
+        try:
+            return self._sshConfig.globalSettings()
+        except OSError as error:
+            logger.warning("Could not read %s: %s", self._sshConfig.path, error)
+            return GlobalSettings()
+
+    def saveGlobalSettings(self, settings: GlobalSettings) -> None:
+        """Write the defaults into the Host * block; new connections pick them up."""
+        try:
+            self._sshConfig.upsertGlobal(settings)
+        except (SshConfigError, OSError) as error:
+            message = f"Could not save SSH defaults to {self._sshConfig.path}: {error}"
+            logger.error(message)
+            self.statusBar().showMessage(message)
+            return
+        self._sshConfigHosts = self._loadSshConfigHosts()
+        self._hostsChanged()
+        self.statusBar().showMessage("Saved SSH defaults to ~/.ssh/config")
+
+    def _globalSettingsDialog(self) -> None:
+        dialog = GlobalSettingsDialog(self.globalSettings(), parent=self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.saveGlobalSettings(dialog.settings())
 
     def _writeSshConfig(self, host: Host, previousName: str | None) -> bool:
         """Save a host into ~/.ssh/config and reload; a failure lands in the status bar."""

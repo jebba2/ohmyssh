@@ -68,6 +68,36 @@ def test_save_in_defaults_to_ssh_config_and_follows_an_existing_host(qtbot: QtBo
     assert saved.sharedWith == ["alias"]
 
 
+def test_keepalive_and_compression_default_to_use_global(qtbot: QtBot) -> None:
+    dialog = HostDialog(existingNames=set())
+    qtbot.addWidget(dialog)
+    dialog.nameEdit.setText("box")
+    dialog.hostnameEdit.setText("box.local")
+    assert dialog.keepaliveSpin.text() == "Use global"
+    assert dialog.keepaliveCountSpin.text() == "Use global"
+    assert dialog.compressionCombo.currentText() == "Use global"
+    host = dialog.host()
+    assert (host.serverAliveInterval, host.serverAliveCountMax, host.compression) == (None, None, None)
+
+    dialog.keepaliveSpin.setValue(15)
+    dialog.keepaliveCountSpin.setValue(5)
+    dialog.compressionCombo.setCurrentIndex(dialog.compressionCombo.findText("Off"))
+    host = dialog.host()
+    assert (host.serverAliveInterval, host.serverAliveCountMax, host.compression) == (15, 5, False)
+
+
+def test_edit_prefills_keepalive_and_compression(qtbot: QtBot) -> None:
+    existing = Host(name="t", hostname="t.local", serverAliveInterval=30, compression=True, source=HostSource.APP)
+    dialog = HostDialog(host=existing, existingNames={"t"})
+    qtbot.addWidget(dialog)
+    assert dialog.keepaliveSpin.value() == 30
+    assert dialog.keepaliveCountSpin.value() == -1
+    assert dialog.compressionCombo.currentText() == "On"
+    dialog.accept()
+    host = dialog.host()
+    assert (host.serverAliveInterval, host.serverAliveCountMax, host.compression) == (30, None, True)
+
+
 def test_alias_warning_names_the_other_hosts_on_the_line(qtbot: QtBot) -> None:
     plain = HostDialog(host=Host(name="solo", hostname="s"), existingNames={"solo"})
     qtbot.addWidget(plain)

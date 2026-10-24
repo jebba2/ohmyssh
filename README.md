@@ -7,6 +7,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Hosts from your SSH config.** `~/.ssh/config` is read at startup, including `Include` files and `ProxyJump`.
 - **Saving to your SSH config.** New hosts go into `~/.ssh/config` by default, so plain `ssh` sees them too; the Add host dialog's "Save in" choice can keep a host in the app instead. Editing a host from the config rewrites only the lines the app manages inside its own `Host` block: `HostName`, `User`, `Port`, `IdentityFile`, `ProxyJump`, the forwards, and a `# tags:` comment that carries the app's tags. Comments, blank lines, indentation, other directives, `Match` and wildcard blocks, and `Include` lines are left byte for byte as they were, and a host defined in an included file is edited in that file. A `Host` line with several names, such as `Host Hermes (jebba)`, is one block, so the dialog warns that the edit applies to the other names too. Every write first copies the file to `working/backups/` (the last ten are kept), goes through a temporary file, and is read back before it is accepted.
 - **App-managed hosts.** Hosts kept in the app live in `hosts.toml` and are edited there.
+- **Defaults the hosts can override.** `Ctrl+,` or the Settings button edits the keepalive interval, keepalive count, identity file, and compression that every host inherits. They are saved as the `Host *` block at the end of `~/.ssh/config`; `ssh` takes the first value it finds for a setting, so a `Host *` block that sits above the hosts would override them, and an existing one higher up is moved to the end when you save. Each host dialog has its own keepalive and compression rows that default to "Use global". The app's connections use the same host-first precedence: the interval becomes the paramiko keepalive, compression is negotiated, and the global identity file is tried when a host has none. `ServerAliveCountMax` is written for `ssh` only, since paramiko has no equivalent.
 - **Removing hosts.** The Edit host dialog and the card's right-click menu both offer it. A host kept in the app is deleted from `hosts.toml`. A host from `~/.ssh/config` is hidden from the dashboard rather than deleted from the file; its name goes into `hidden_hosts` in `hosts.toml`, and removing it from that list brings the host back.
 - **Live dashboard.** Every host is a card with CPU, RAM, and disk bars, OS name, uptime, load average, a Docker badge with the running container count, and the top three processes. Bars turn yellow at 60% and red at 85%. Cards refresh on a timer and can be grouped by tag.
 - **Real terminals.** Click the terminal button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
@@ -54,6 +55,7 @@ uv run python -m pyommyssh
 | `F5` | Refresh every host now, including hosts whose password prompt was cancelled |
 | `Ctrl+K` | Search hosts and open sessions |
 | `Ctrl+G` | Generate an SSH key pair |
+| `Ctrl+,` | SSH defaults (the `Host *` block) |
 | `Ctrl+Shift+V`, `Shift+Insert` | Paste into the terminal |
 | Mouse wheel | Scroll the terminal back through history |
 
@@ -89,6 +91,16 @@ Host web
     # tags: prod web
 ```
 
+The defaults live in a `Host *` block kept at the end of the file:
+
+```
+Host *
+    ServerAliveInterval 60
+    ServerAliveCountMax 3
+    IdentityFile ~/.ssh/id_rsa
+    Compression yes
+```
+
 Backups of the file from before each save are in `working/backups/`.
 
 ### `hosts.toml`
@@ -107,6 +119,9 @@ tags = ["prod", "web"]
 local_forwards = ["8080:localhost:80", "127.0.0.1:5432:db.internal:5432"]
 remote_forwards = ["9000:127.0.0.1:3000"]
 dynamic_forwards = ["1080"]
+server_alive_interval = 30     # omit any of these three to inherit the Host * default
+server_alive_count_max = 5
+compression = false
 ```
 
 A host here with the same name as one in `~/.ssh/config` takes precedence. A top-level `hidden_hosts = ["name", ...]` list keeps those SSH config hosts off the dashboard.

@@ -38,6 +38,14 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Saving a host with forwards writes `local_forwards`, `remote_forwards`, and `dynamic_forwards` lists to `hosts.toml`; empty lists are omitted
 - [ ] Edit host shows the saved forwards, one per line, in the box for their kind
 
+## SSH defaults
+
+- [ ] `Ctrl+,` and the Settings button open "SSH defaults" showing the current `Host *` values, or "Not set" where there are none
+- [ ] Saving writes a `Host *` block at the end of `~/.ssh/config` with only the set values; an existing `Host *` block at the top of the file is moved to the end with its other lines intact (`diff` against the backup)
+- [ ] A host dialog's Keepalive interval, Keepalive count, and Compression default to "Use global"; set values appear as `ServerAliveInterval`, `ServerAliveCountMax`, and `Compression` lines in that host's block
+- [ ] With a global keepalive of 10 and `sshd` logging at debug level, the server sees keepalive requests about every 10 seconds on an idle connection; a host set to 3 sends them every 3 seconds
+- [ ] With global compression on, `ssh -v <host>` shows compression enabled, and a host with Compression "Off" does not
+
 ## Dashboard
 
 - [ ] After startup every card shows "Connecting..." then "Online" or an error
