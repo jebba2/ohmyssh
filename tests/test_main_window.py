@@ -17,6 +17,7 @@ from pyommyssh.core.config import AppSettings
 from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource, HostStore
 from pyommyssh.core.keys import KeyType, generateKeyPair, readPublicKey
+from pyommyssh.core.sshconfig import SshConfigEditor
 from pyommyssh.core.tunnel import TunnelState, TunnelStatus
 from pyommyssh.ui.filePane import FilePane
 from pyommyssh.ui.keyGenerateDialog import KeyGenerateRequest
@@ -52,15 +53,26 @@ def _window(
             prompts.append(host.name)
         return answer
 
+    editor = _sshConfig(tmp_path)
+    for configHost in sshConfigHosts or []:
+        editor.upsertHost(configHost)
     window = MainWindow(
         settings=AppSettings(refreshIntervalSeconds=3600),
         hostStore=store,
-        sshConfigHosts=sshConfigHosts or [],
+        sshConfig=editor,
         knownHostsPath=tmp_path / "known_hosts",
         passwordPrompt=prompt,
     )
     qtbot.addWidget(window)
     return window
+
+
+def _sshConfig(tmp_path: Path) -> SshConfigEditor:
+    return SshConfigEditor(tmp_path / ".ssh" / "config", home=tmp_path, backupDir=tmp_path / "backups")
+
+
+def _configText(tmp_path: Path) -> str:
+    return (tmp_path / ".ssh" / "config").read_text()
 
 
 @pytest.fixture
@@ -247,26 +259,71 @@ def test_removal_prompt_text_differs_for_config_and_app_hosts(
     )
 
 
-def test_editing_an_ssh_config_host_saves_an_overriding_app_host(
+def test_new_host_can_be_saved_to_ssh_config_or_kept_in_the_app(
     qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
 ) -> None:
-    configHost = Host(name="cfg", hostname="old.local", source=HostSource.SSH_CONFIG)
-    window = _window(qtbot, store, tmp_path, sshConfigHosts=[configHost])
+    window = _window(qtbot, store, tmp_path, sshConfigHosts=[Host(name="cfg", hostname="c.local")])
     windows.append(window)
 
-    window.applyEdit(configHost, Host(name="cfg", hostname="new.local", tags=["lab"]))
+    window.saveNewHost(Host(name="shared", hostname="s.local", user="me", tags=["lab"]), toSshConfig=True)
+    assert "Host shared\n    HostName s.local\n    User me\n    # tags: lab\n" in _configText(tmp_path)
+    assert _storedNames(tmp_path) == []
+    saved = next(h for h in window.hosts() if h.name == "shared")
+    assert saved.source == HostSource.SSH_CONFIG and saved.tags == ["lab"]
+    assert window.dashboard.cardFor("shared") is not None
+
+    window.saveNewHost(Host(name="private", hostname="p.local"), toSshConfig=False)
+    assert "private" not in _configText(tmp_path)
+    assert _storedNames(tmp_path) == ["private"]
+
+
+def test_editing_an_ssh_config_host_rewrites_its_block_in_place(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    window = _window(qtbot, store, tmp_path, sshConfigHosts=[Host(name="cfg", hostname="old.local")])
+    windows.append(window)
+    configHost = next(h for h in window.hosts() if h.name == "cfg")
+    assert configHost.sourceFile == tmp_path / ".ssh" / "config"
+
+    edited = Host(name="cfg", hostname="new.local", tags=["lab"], sourceFile=configHost.sourceFile)
+    window.applyEdit(configHost, edited)
+    assert _configText(tmp_path) == "Host cfg\n    HostName new.local\n    # tags: lab\n"
     hosts = window.hosts()
-    assert [(h.name, h.hostname, h.source) for h in hosts] == [("cfg", "new.local", HostSource.APP)]
-    assert _storedNames(tmp_path) == ["cfg"]
-    assert len(window.dashboard.cards()) == 1
+    assert [(h.name, h.hostname, h.source, h.tags) for h in hosts] == [("cfg", "new.local", HostSource.SSH_CONFIG, ["lab"])]
+    assert _storedNames(tmp_path) == []
     card = window.dashboard.cardFor("cfg")
     assert card is not None
     assert card.addressLabel.text() == "new.local"
+    assert list((tmp_path / "backups").iterdir())
 
-    # Editing the override again updates it in place rather than adding another.
-    window.applyEdit(hosts[0], Host(name="cfg", hostname="newer.local"))
-    assert [h.hostname for h in window.hosts()] == ["newer.local"]
-    assert _storedNames(tmp_path) == ["cfg"]
+
+def test_renaming_a_host_on_a_shared_line_keeps_the_other_alias(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    configPath = tmp_path / ".ssh" / "config"
+    configPath.parent.mkdir()
+    configPath.write_text("Host Hermes (jebba)\n    HostName hermes.local\n")
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    hermes = next(h for h in window.hosts() if h.name == "Hermes")
+    assert hermes.sharedWith == ["(jebba)"]
+
+    window.applyEdit(hermes, Host(name="hermes2", hostname="hermes.local", sourceFile=hermes.sourceFile))
+    assert _configText(tmp_path) == "Host hermes2 (jebba)\n    HostName hermes.local\n"
+    assert sorted(h.name for h in window.hosts()) == ["(jebba)", "hermes2"]
+
+
+def test_failed_config_save_is_reported_and_changes_nothing(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    window = _window(qtbot, store, tmp_path, sshConfigHosts=[Host(name="cfg", hostname="c.local")])
+    windows.append(window)
+    before = _configText(tmp_path)
+    configHost = next(h for h in window.hosts() if h.name == "cfg")
+    window.applyEdit(configHost, Host(name="bad name", hostname="c.local", sourceFile=configHost.sourceFile))
+    assert _configText(tmp_path) == before
+    assert window.statusBar().currentMessage().startswith("Could not save 'bad name' to ")
+    assert [h.name for h in window.hosts()] == ["cfg"]
 
 
 def test_group_by_tag_action_toggles_dashboard(

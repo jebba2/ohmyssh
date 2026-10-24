@@ -27,6 +27,7 @@ from pyommyssh.core.hosts import Host, HostSource, HostStore, mergeHosts
 from pyommyssh.core.keys import KeyGenerateRequest, readPublicKey
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
+from pyommyssh.core.sshconfig import SshConfigEditor, SshConfigError
 from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
 from pyommyssh.ui.dashboard import DashboardView
 from pyommyssh.ui.hostDialog import HostDialog
@@ -67,7 +68,7 @@ class MainWindow(QMainWindow):
         self,
         settings: AppSettings,
         hostStore: HostStore,
-        sshConfigHosts: list[Host],
+        sshConfig: SshConfigEditor,
         knownHostsPath: Path | None,
         passwordPrompt: PasswordPrompt | None = None,
         parent: QWidget | None = None,
@@ -75,7 +76,8 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
         self._settings = settings
         self._hostStore = hostStore
-        self._sshConfigHosts = list(sshConfigHosts)
+        self._sshConfig = sshConfig
+        self._sshConfigHosts = self._loadSshConfigHosts()
         self._pool = ConnectionPool(self.hosts, knownHostsPath)
         self._passwordPrompt = passwordPrompt or askPasswordWithDialog(self)
         # The questions SFTP tabs ask (replace, name, confirm); tests swap in canned answers.
@@ -164,21 +166,44 @@ class MainWindow(QMainWindow):
         self.dashboard.setHosts(self.hosts())
         self.statusBar().showMessage(f"{len(self.hosts())} hosts")
 
-    def saveNewHost(self, host: Host) -> None:
-        """Add a host to the store and the dashboard."""
-        self._hostStore.add(host)
-        self._hostStore.save()
+    def _loadSshConfigHosts(self) -> list[Host]:
+        try:
+            return self._sshConfig.hosts()
+        except OSError as error:
+            logger.warning("Could not read %s: %s", self._sshConfig.path, error)
+            return []
+
+    def _writeSshConfig(self, host: Host, previousName: str | None) -> bool:
+        """Save a host into ~/.ssh/config and reload; a failure lands in the status bar."""
+        try:
+            self._sshConfig.upsertHost(host, previousName=previousName)
+        except (SshConfigError, OSError) as error:
+            message = f"Could not save '{host.name}' to {self._sshConfig.path}: {error}"
+            logger.error(message)
+            self.statusBar().showMessage(message)
+            return False
+        self._sshConfigHosts = self._loadSshConfigHosts()
+        return True
+
+    def saveNewHost(self, host: Host, toSshConfig: bool = False) -> None:
+        """Add a host to ~/.ssh/config or to hosts.toml, then to the dashboard."""
+        if toSshConfig:
+            if not self._writeSshConfig(host, previousName=None):
+                return
+        else:
+            self._hostStore.add(host)
+            self._hostStore.save()
         self._hostsChanged()
 
     def saveEditedHost(self, oldName: str, host: Host) -> None:
-        """Replace a stored host; any live connection under the old name is dropped.
-
-        A running tunnel is restarted with the new definition, or stopped
-        when the edit removed every forward.
-        """
-        tunnelWasRunning = self.tunnels.isRunning(oldName)
+        """Replace a stored host; any live connection under the old name is dropped."""
         self._hostStore.update(oldName, host)
         self._hostStore.save()
+        self._afterHostChanged(oldName, host)
+
+    def _afterHostChanged(self, oldName: str, host: Host) -> None:
+        """Drop the old connection and restart a running tunnel with the new definition."""
+        tunnelWasRunning = self.tunnels.isRunning(oldName)
         self.tunnels.stop(oldName)
         self._pool.forget(oldName)
         self._hostsChanged()
@@ -204,20 +229,15 @@ class MainWindow(QMainWindow):
         dialog = HostDialog(existingNames={host.name for host in self.hosts()}, parent=self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             host = dialog.host()
-            self.saveNewHost(host)
+            self.saveNewHost(host, toSshConfig=dialog.saveToSshConfig())
             self.refreshHost(host)
 
     def applyEdit(self, original: Host, edited: Host) -> None:
-        """Save an edited host.
-
-        App-managed hosts are updated in place. Hosts from ~/.ssh/config are
-        never rewritten, so editing one saves an app-managed copy that takes
-        precedence over the config entry with the same name.
-        """
+        """Save an edited host where it lives: hosts.toml, or its block in ~/.ssh/config."""
         if original.source == HostSource.APP:
             self.saveEditedHost(original.name, edited)
-        else:
-            self.saveNewHost(edited)
+        elif self._writeSshConfig(edited, previousName=original.name):
+            self._afterHostChanged(original.name, edited)
 
     def _editHostDialog(self, host: Host) -> None:
         names = {candidate.name for candidate in self.hosts()}

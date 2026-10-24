@@ -18,12 +18,17 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Hosts from `~/.ssh/config` appear as cards with the right `user@host:port`
 - [ ] A host inside an `Include`d file appears
 - [ ] Wildcard `Host *` and `Match` blocks do not create cards
-- [ ] `~/.ssh/config` is byte-for-byte unchanged after running the app
-- [ ] `Ctrl+N` opens Add host; leaving Name blank shows "Name is required"
+- [ ] `~/.ssh/config` is byte-for-byte unchanged after running the app without saving a host
+- [ ] `Ctrl+N` opens Add host with "Save in" set to `~/.ssh/config`; leaving Name blank shows "Name is required"
 - [ ] Reusing an existing name shows "A host named '...' already exists"
-- [ ] Saving a new host adds a card and writes `%APPDATA%\pyommyssh\hosts.toml`
-- [ ] The pencil button beside the name opens Edit host prefilled; saving changes the card
-- [ ] Editing an SSH config host saves an app host with the same name that replaces it on the dashboard, and `~/.ssh/config` is unchanged
+- [ ] Saving a new host appends a `Host` block at the end of `~/.ssh/config` (tags as a `# tags:` comment), the card appears, and `ssh <name>` in a terminal works
+- [ ] Choosing "App only (hosts.toml)" instead writes `%APPDATA%\pyommyssh\hosts.toml` and leaves `~/.ssh/config` alone
+- [ ] The pencil button beside the name opens Edit host prefilled with "Save in" disabled; saving changes the card
+- [ ] Editing an SSH config host changes only its own block's HostName, User, Port, IdentityFile, ProxyJump, forwards, and tags comment; every other line in the file, including comments and `Host *`, is unchanged (`diff` against the backup)
+- [ ] Before each save a copy lands in `working/backups/config-<timestamp>.bak`; only the last ten are kept
+- [ ] Editing `Hermes` shows "Also applies to (jebba): they share this Host line in ~/.ssh/config", and the saved change shows on both cards
+- [ ] A host defined in an `Include`d file is edited in that file; the main config is untouched
+- [ ] A name with a space or `*` is refused with "cannot be used as a Host name" and nothing is written
 - [ ] Right-click an app host: Edit host changes the card; Remove host asks "Remove '...'? Its settings are deleted from hosts.toml." and removes it
 - [ ] Right-click an SSH config host: Hide host asks to confirm, explains that `~/.ssh/config` is not changed, and the card disappears; `hosts.toml` gains `hidden_hosts = ["..."]` and the host stays hidden after a restart
 - [ ] Removing the name from `hidden_hosts` and restarting brings the host back

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -22,6 +23,8 @@ from pyommyssh.core.forwards import ForwardKind, PortForward
 from pyommyssh.core.hosts import Host, HostSource
 
 FORWARD_FIELD_HEIGHT = 64
+SAVE_IN_SSH_CONFIG = "~/.ssh/config"
+SAVE_IN_APP = "App only (hosts.toml)"
 
 _FORWARD_LABELS = {
     ForwardKind.LOCAL: "Local forward",
@@ -59,6 +62,21 @@ class HostDialog(QDialog):
         self._existingNames = set(existingNames or set())
         self.setWindowTitle("Edit host" if host else "Add host")
 
+        # New hosts go to ~/.ssh/config so plain ssh sees them; an existing host stays where it is.
+        self.saveInCombo = QComboBox()
+        self.saveInCombo.addItems([SAVE_IN_SSH_CONFIG, SAVE_IN_APP])
+        if host is not None:
+            self.saveInCombo.setCurrentIndex(0 if host.source == HostSource.SSH_CONFIG else 1)
+            self.saveInCombo.setEnabled(False)
+        self.aliasLabel = QLabel("")
+        self.aliasLabel.setObjectName("aliasWarning")
+        self.aliasLabel.setWordWrap(True)
+        if host is not None and host.sharedWith:
+            self.aliasLabel.setText(
+                f"Also applies to {', '.join(host.sharedWith)}: they share this Host line in ~/.ssh/config"
+            )
+        self.aliasLabel.setVisible(bool(host is not None and host.sharedWith))
+
         self.nameEdit = QLineEdit()
         self.hostnameEdit = QLineEdit()
         self.userEdit = QLineEdit()
@@ -87,6 +105,8 @@ class HostDialog(QDialog):
         identityRow.addWidget(browseButton)
 
         form = QFormLayout(self)
+        form.addRow("Save in", self.saveInCombo)
+        form.addRow(self.aliasLabel)
         form.addRow("Name", self.nameEdit)
         form.addRow("Hostname", self.hostnameEdit)
         form.addRow("User", self.userEdit)
@@ -178,10 +198,19 @@ class HostDialog(QDialog):
         self.errorLabel.setText("")
         super().accept()
 
+    def saveToSshConfig(self) -> bool:
+        """True when the host belongs in ~/.ssh/config rather than hosts.toml."""
+        return self.saveInCombo.currentIndex() == 0
+
     def host(self) -> Host:
-        """Build a Host from the current field values."""
+        """Build a Host from the current field values.
+
+        An edited SSH config host keeps the file and shared names it came
+        with, so it is written back to the right block.
+        """
         identity = self.identityEdit.text().strip()
         tags = [tag.strip() for tag in self.tagsEdit.text().split(",") if tag.strip()]
+        original = self._original
         return Host(
             name=self.nameEdit.text().strip(),
             hostname=self.hostnameEdit.text().strip(),
@@ -191,5 +220,7 @@ class HostDialog(QDialog):
             proxyJump=self.proxyJumpEdit.text().strip() or None,
             tags=tags,
             forwards=self._parseForwards(),
-            source=HostSource.APP,
+            source=HostSource.SSH_CONFIG if self.saveToSshConfig() else HostSource.APP,
+            sourceFile=original.sourceFile if original is not None else None,
+            sharedWith=list(original.sharedWith) if original is not None else [],
         )

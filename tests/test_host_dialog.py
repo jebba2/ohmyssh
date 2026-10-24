@@ -33,7 +33,50 @@ def test_new_host_from_fields(qtbot: QtBot, tmp_path: Path) -> None:
         identityFile=tmp_path / "key",
         proxyJump="bastion",
         tags=["prod", "web"],
-        source=HostSource.APP,
+        source=HostSource.SSH_CONFIG,
+    )
+
+
+def test_save_in_defaults_to_ssh_config_and_follows_an_existing_host(qtbot: QtBot) -> None:
+    adding = HostDialog(existingNames=set())
+    qtbot.addWidget(adding)
+    assert adding.saveInCombo.isEnabled()
+    assert adding.saveInCombo.currentText() == "~/.ssh/config"
+    adding.nameEdit.setText("new")
+    adding.hostnameEdit.setText("n.local")
+    assert adding.saveToSshConfig()
+    assert adding.host().source == HostSource.SSH_CONFIG
+    adding.saveInCombo.setCurrentIndex(1)
+    assert adding.saveInCombo.currentText() == "App only (hosts.toml)"
+    assert not adding.saveToSshConfig()
+    assert adding.host().source == HostSource.APP
+
+    appHost = Host(name="mine", hostname="m.local", source=HostSource.APP)
+    editingApp = HostDialog(host=appHost, existingNames={"mine"})
+    qtbot.addWidget(editingApp)
+    assert editingApp.saveInCombo.currentText() == "App only (hosts.toml)"
+    assert not editingApp.saveInCombo.isEnabled()
+
+    configHost = Host(name="cfg", hostname="c.local", sourceFile=Path("/tmp/conf.d/a.conf"), sharedWith=["alias"])
+    editingConfig = HostDialog(host=configHost, existingNames={"cfg"})
+    qtbot.addWidget(editingConfig)
+    assert editingConfig.saveInCombo.currentText() == "~/.ssh/config"
+    assert not editingConfig.saveInCombo.isEnabled()
+    saved = editingConfig.host()
+    assert saved.source == HostSource.SSH_CONFIG
+    assert saved.sourceFile == Path("/tmp/conf.d/a.conf")
+    assert saved.sharedWith == ["alias"]
+
+
+def test_alias_warning_names_the_other_hosts_on_the_line(qtbot: QtBot) -> None:
+    plain = HostDialog(host=Host(name="solo", hostname="s"), existingNames={"solo"})
+    qtbot.addWidget(plain)
+    assert plain.aliasLabel.isHidden()
+    shared = HostDialog(host=Host(name="Hermes", hostname="h", sharedWith=["(jebba)", "extra"]), existingNames={"Hermes"})
+    qtbot.addWidget(shared)
+    assert not shared.aliasLabel.isHidden()
+    assert shared.aliasLabel.text() == (
+        "Also applies to (jebba), extra: they share this Host line in ~/.ssh/config"
     )
 
 

@@ -10,7 +10,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from pyommyssh.core.config import AppPaths, AppSettings, loadSettings
-from pyommyssh.core.hosts import HostStore, loadSshConfig
+from pyommyssh.core.hosts import HostStore
+from pyommyssh.core.sshconfig import SshConfigEditor
 from pyommyssh.ui.mainWindow import MainWindow
 from pyommyssh.ui.theme import DARK_STYLESHEET
 
@@ -47,10 +48,11 @@ def main() -> int:
 
     hostStore = HostStore(paths.hostsFile)
     hostStore.load()
-    sshConfigHosts = loadSshConfig()
+    sshConfig = SshConfigEditor(Path.home() / ".ssh" / "config", backupDir=paths.workingDir / "backups")
     logger.info(
-        "Loaded %d hosts from ssh config and %d from %s",
-        len(sshConfigHosts),
+        "Loaded %d hosts from %s and %d from %s",
+        len(sshConfig.hosts()),
+        sshConfig.path,
         len(hostStore.hosts()),
         paths.hostsFile,
     )
@@ -58,7 +60,7 @@ def main() -> int:
     window = MainWindow(
         settings=settings,
         hostStore=hostStore,
-        sshConfigHosts=sshConfigHosts,
+        sshConfig=sshConfig,
         knownHostsPath=Path.home() / ".ssh" / "known_hosts",
     )
     window.show()

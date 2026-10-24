@@ -4,9 +4,10 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 
 ## What it does today (Phases 1 and 2)
 
-- **Hosts from your SSH config.** `~/.ssh/config` is read at startup, including `Include` files and `ProxyJump`. It is never written to.
-- **App-managed hosts.** Add, edit, and remove hosts inside the app with the pencil button on each card. They are stored separately in `hosts.toml`. Editing a host that came from `~/.ssh/config` saves an app-managed copy that overrides it; the config file itself is left alone.
-- **Removing hosts.** The Edit host dialog and the card's right-click menu both offer it. A host you added is deleted from `hosts.toml`. A host from `~/.ssh/config` is hidden from the dashboard instead, since that file is never rewritten; its name goes into `hidden_hosts` in `hosts.toml`, and removing it from that list brings the host back.
+- **Hosts from your SSH config.** `~/.ssh/config` is read at startup, including `Include` files and `ProxyJump`.
+- **Saving to your SSH config.** New hosts go into `~/.ssh/config` by default, so plain `ssh` sees them too; the Add host dialog's "Save in" choice can keep a host in the app instead. Editing a host from the config rewrites only the lines the app manages inside its own `Host` block: `HostName`, `User`, `Port`, `IdentityFile`, `ProxyJump`, the forwards, and a `# tags:` comment that carries the app's tags. Comments, blank lines, indentation, other directives, `Match` and wildcard blocks, and `Include` lines are left byte for byte as they were, and a host defined in an included file is edited in that file. A `Host` line with several names, such as `Host Hermes (jebba)`, is one block, so the dialog warns that the edit applies to the other names too. Every write first copies the file to `working/backups/` (the last ten are kept), goes through a temporary file, and is read back before it is accepted.
+- **App-managed hosts.** Hosts kept in the app live in `hosts.toml` and are edited there.
+- **Removing hosts.** The Edit host dialog and the card's right-click menu both offer it. A host kept in the app is deleted from `hosts.toml`. A host from `~/.ssh/config` is hidden from the dashboard rather than deleted from the file; its name goes into `hidden_hosts` in `hosts.toml`, and removing it from that list brings the host back.
 - **Live dashboard.** Every host is a card with CPU, RAM, and disk bars, OS name, uptime, load average, a Docker badge with the running container count, and the top three processes. Bars turn yellow at 60% and red at 85%. Cards refresh on a timer and can be grouped by tag.
 - **Real terminals.** Click the terminal button beside a host's name, or double-click the card, to open a tabbed terminal with a full PTY, colors, scrollback (mouse wheel), and paste with `Ctrl+Shift+V` or `Shift+Insert`.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
@@ -73,9 +74,26 @@ theme = "dark"             # only "dark" exists yet
 terminal_font_size = 11    # points, at least 6
 ```
 
+### `~/.ssh/config`
+
+The app writes hosts here in plain OpenSSH form, one `Host` block each, appended at the end of the file. Tags are kept as a comment inside the block, which `ssh` ignores:
+
+```
+Host web
+    HostName 10.0.0.5
+    User deploy
+    Port 2222
+    IdentityFile ~/.ssh/web_key
+    ProxyJump bastion
+    LocalForward 8080 localhost:80
+    # tags: prod web
+```
+
+Backups of the file from before each save are in `working/backups/`.
+
 ### `hosts.toml`
 
-Written by the app when you add hosts. You can also edit it by hand:
+Written by the app when you choose "App only" for a host. You can also edit it by hand:
 
 ```toml
 [[hosts]]
@@ -136,7 +154,7 @@ See [TESTPLAN.md](TESTPLAN.md) for the manual checklist.
 ## Project layout
 
 ```
-src/pyommyssh/core/   hosts, forwards, metrics, ssh, connections, tunnel, socks, keys, sftp, terminal, config (no Qt)
+src/pyommyssh/core/   hosts, sshconfig, forwards, metrics, ssh, connections, tunnel, socks, keys, sftp, terminal, config (no Qt)
 src/pyommyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftpTab, sftpBridge, mainWindow, workers
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples
