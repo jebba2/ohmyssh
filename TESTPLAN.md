@@ -102,6 +102,13 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] A chain `ProxyJump a,b` and a nested jump (b itself has a ProxyJump) both work
 - [ ] A ProxyJump naming an unknown host shows an error mentioning that name
 
+## First launch
+
+- [ ] With `%APPDATA%\pyommyssh\first_run_done` deleted and no private key in `~/.ssh` (move them aside), starting the app creates `~/.ssh` if missing and shows "Welcome to pyommyssh" explaining that no key was found
+- [ ] Yes opens Generate SSH key with Save as `~/.ssh/id_ed25519`; OK writes the pair and the status bar reports it
+- [ ] No, or cancelling the key dialog, leaves `~/.ssh` without a key, and the next start does not ask again
+- [ ] With a key already present, starting the app shows no welcome; `first_run_done` is still written
+
 ## SSH keys
 
 - [ ] `Ctrl+G` and the Generate key toolbar button open "Generate SSH key" with Ed25519 selected and Save as pointing at `~/.ssh/id_ed25519`

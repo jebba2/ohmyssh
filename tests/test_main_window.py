@@ -348,6 +348,75 @@ def test_global_settings_reach_new_connections(
     assert ("publickey", TEST_USER) in sshServer.authAttempts
 
 
+def _firstLaunchWindow(
+    qtbot: QtBot,
+    store: HostStore,
+    tmp_path: Path,
+    welcomeAnswer: bool,
+    request: KeyGenerateRequest | None,
+) -> tuple[MainWindow, list[str], list[Path]]:
+    window = _window(qtbot, store, tmp_path)
+    welcomed: list[str] = []
+    asked: list[Path] = []
+    window.firstRunPrompts.welcome = lambda message: (welcomed.append(message), welcomeAnswer)[1]
+    window.firstRunPrompts.keyRequest = lambda sshDir: (asked.append(sshDir), request)[1]
+    window.firstRunMarker = tmp_path / "config" / "first_run_done"
+    return window, welcomed, asked
+
+
+def test_first_launch_creates_ssh_dir_and_walks_through_generating_a_key(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    sshDir = tmp_path / ".ssh"
+    request = KeyGenerateRequest(sshDir / "id_ed25519", KeyType.ED25519, "me@here", None)
+    window, welcomed, asked = _firstLaunchWindow(qtbot, store, tmp_path, welcomeAnswer=True, request=request)
+    windows.append(window)
+    assert window.runFirstLaunchSetup() == "generated"
+    assert sshDir.is_dir()
+    assert len(welcomed) == 1 and "No SSH key was found" in welcomed[0] and str(sshDir) in welcomed[0]
+    assert asked == [sshDir]
+    qtbot.waitUntil(lambda: (sshDir / "id_ed25519.pub").exists(), timeout=WAIT_MS)
+    qtbot.waitUntil(lambda: window.statusBar().currentMessage().startswith("Generated id_ed25519"), timeout=WAIT_MS)
+    assert (tmp_path / "config" / "first_run_done").is_file()
+    # Only the first launch asks.
+    assert window.runFirstLaunchSetup() == "skipped"
+    assert len(welcomed) == 1
+
+
+def test_first_launch_declined_is_not_asked_again(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    window, welcomed, asked = _firstLaunchWindow(qtbot, store, tmp_path, welcomeAnswer=False, request=None)
+    windows.append(window)
+    assert window.runFirstLaunchSetup() == "declined"
+    assert len(welcomed) == 1 and asked == []
+    assert not list((tmp_path / ".ssh").glob("id_*"))
+    assert (tmp_path / "config" / "first_run_done").is_file()
+    assert window.runFirstLaunchSetup() == "skipped"
+
+
+def test_first_launch_with_an_existing_key_stays_quiet(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    sshDir = tmp_path / ".ssh"
+    generateKeyPair(sshDir / "id_rsa", KeyType.RSA, "c", passphrase=None)
+    window, welcomed, _ = _firstLaunchWindow(qtbot, store, tmp_path, welcomeAnswer=True, request=None)
+    windows.append(window)
+    assert window.runFirstLaunchSetup() == "has-keys"
+    assert welcomed == []
+    assert (tmp_path / "config" / "first_run_done").is_file()
+
+
+def test_first_launch_setup_is_off_without_a_marker_path(
+    qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
+) -> None:
+    window, welcomed, _ = _firstLaunchWindow(qtbot, store, tmp_path, welcomeAnswer=True, request=None)
+    windows.append(window)
+    window.firstRunMarker = None
+    assert window.runFirstLaunchSetup() == "skipped"
+    assert welcomed == []
+
+
 def test_failed_config_save_is_reported_and_changes_nothing(
     qtbot: QtBot, store: HostStore, tmp_path: Path, windows: list[MainWindow]
 ) -> None:

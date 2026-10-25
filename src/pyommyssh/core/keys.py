@@ -56,6 +56,30 @@ class KeyGenerateRequest:
     passphrase: str | None
 
 
+# Private key names ssh tries on its own, recognised even without a .pub beside them.
+DEFAULT_PRIVATE_KEY_NAMES = frozenset({"id_rsa", "id_ed25519", "id_ecdsa", "id_dsa"})
+
+
+def findPrivateKeys(sshDir: Path) -> list[Path]:
+    """Private keys in ``sshDir``: files with a ``.pub`` beside them, or with a default key name."""
+    if not sshDir.is_dir():
+        return []
+    keys = [
+        path
+        for path in sshDir.iterdir()
+        if path.is_file()
+        and path.suffix != ".pub"
+        and (path.with_name(path.name + ".pub").exists() or path.name in DEFAULT_PRIVATE_KEY_NAMES)
+    ]
+    return sorted(keys)
+
+
+def ensureSshDirectory(sshDir: Path) -> Path:
+    """Create ``sshDir`` private to the user if it does not exist; returns it."""
+    sshDir.mkdir(parents=True, exist_ok=True, mode=KEY_DIR_MODE)
+    return sshDir
+
+
 def defaultKeyFileName(keyType: KeyType) -> str:
     """The file name ``ssh`` looks for by default: ``id_ed25519`` or ``id_rsa``."""
     return f"id_{keyType.value}"

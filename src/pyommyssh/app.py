@@ -85,7 +85,9 @@ def main() -> int:
         hostStore=hostStore,
         sshConfig=sshConfig,
         knownHostsPath=Path.home() / ".ssh" / "known_hosts",
+        firstRunMarker=paths.firstRunMarker,
     )
     window.show()
+    window.runFirstLaunchSetup()
     window.refreshAll()
     return app.exec()

@@ -44,6 +44,7 @@ def test_app_paths_use_given_root(tmp_path: Path) -> None:
     paths = AppPaths(configDir=tmp_path / "cfg", workingDir=tmp_path / "working")
     assert paths.settingsFile == tmp_path / "cfg" / "config.toml"
     assert paths.hostsFile == tmp_path / "cfg" / "hosts.toml"
+    assert paths.firstRunMarker == tmp_path / "cfg" / "first_run_done"
     assert paths.logFile == tmp_path / "working" / "logs" / "pyommyssh.log"
 
 

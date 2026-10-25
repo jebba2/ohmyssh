@@ -50,6 +50,8 @@ or
 uv run python -m pyommyssh
 ```
 
+**First launch.** The app makes sure `~/.ssh` exists, and if it holds no private key it offers to generate one, opening the same Generate key dialog with `~/.ssh/id_ed25519` as the default. Whatever you answer, it asks only once; a `first_run_done` marker in the config directory records that, and deleting it brings the offer back. The key button on a host's card installs the new key on that host.
+
 On Windows the app registers its own taskbar identity at startup, so the taskbar shows the pyommyssh logo rather than Python's icon even when run from source.
 
 ### Keyboard shortcuts

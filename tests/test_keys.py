@@ -17,6 +17,8 @@ from pyommyssh.core.keys import (
     buildInstallKeyCommand,
     defaultKeyComment,
     defaultKeyFileName,
+    ensureSshDirectory,
+    findPrivateKeys,
     generateKeyPair,
     installPublicKey,
     parseInstallOutput,
@@ -239,3 +241,29 @@ def test_default_key_names_and_comment() -> None:
     assert defaultKeyFileName(KeyType.RSA) == "id_rsa"
     comment = defaultKeyComment()
     assert "@" in comment and "\n" not in comment
+
+
+def test_find_private_keys_lists_keys_that_have_a_public_half(tmp_path: Path) -> None:
+    sshDir = tmp_path / ".ssh"
+    sshDir.mkdir()
+    for name in ("id_ed25519", "work_key"):
+        (sshDir / name).write_bytes(b"private")
+        (sshDir / f"{name}.pub").write_bytes(b"public")
+    (sshDir / "lonely.pub").write_bytes(b"public without private")
+    (sshDir / "known_hosts").write_bytes(b"")
+    (sshDir / "config").write_bytes(b"")
+    assert findPrivateKeys(sshDir) == [sshDir / "id_ed25519", sshDir / "work_key"]
+    assert findPrivateKeys(tmp_path / "missing") == []
+    (sshDir / "id_rsa").write_bytes(b"private key without a .pub, still a key")
+    assert sshDir / "id_rsa" in findPrivateKeys(sshDir)
+
+
+def test_ensure_ssh_directory_creates_it_once(tmp_path: Path) -> None:
+    sshDir = tmp_path / ".ssh"
+    assert ensureSshDirectory(sshDir) == sshDir
+    assert sshDir.is_dir()
+    if os.name != "nt":
+        assert sshDir.stat().st_mode & 0o777 == 0o700
+    (sshDir / "keep").write_bytes(b"x")
+    ensureSshDirectory(sshDir)
+    assert (sshDir / "keep").exists()

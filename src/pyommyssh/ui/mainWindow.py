@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QThreadPool, QTimer
@@ -24,7 +26,7 @@ from PySide6.QtWidgets import (
 from pyommyssh.core.config import AppSettings
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore, mergeHosts
-from pyommyssh.core.keys import KeyGenerateRequest, readPublicKey
+from pyommyssh.core.keys import KeyGenerateRequest, ensureSshDirectory, findPrivateKeys, readPublicKey
 from pyommyssh.core.metrics import HostMetrics
 from pyommyssh.core.ssh import SshCredentials
 from pyommyssh.core.sshconfig import SshConfigEditor, SshConfigError
@@ -45,6 +47,32 @@ PASSWORD_REQUIRED = "Password required"
 PUBLIC_KEY_FILTER = "Public keys (*.pub);;All files (*)"
 MAX_CONCURRENT_CONNECTIONS = 10
 WORKER_SHUTDOWN_TIMEOUT_MS = 15000
+
+
+@dataclass
+class FirstRunPrompts:
+    """The two questions of the first-launch walkthrough; tests swap in canned answers.
+
+    ``welcome`` shows the explanation and returns True to go ahead.
+    ``keyRequest`` collects what key to make, or None if the user backs out.
+    """
+
+    welcome: Callable[[str], bool]
+    keyRequest: Callable[[Path], KeyGenerateRequest | None]
+
+
+def dialogFirstRunPrompts(parent: QWidget) -> FirstRunPrompts:
+    """First-launch prompts that use dialogs on ``parent``."""
+
+    def welcome(message: str) -> bool:
+        answer = QMessageBox.question(parent, "Welcome to pyommyssh", message)
+        return answer == QMessageBox.StandardButton.Yes
+
+    def keyRequest(sshDir: Path) -> KeyGenerateRequest | None:
+        dialog = KeyGenerateDialog(defaultDir=sshDir, parent=parent)
+        return dialog.request() if dialog.exec() == QDialog.DialogCode.Accepted else None
+
+    return FirstRunPrompts(welcome=welcome, keyRequest=keyRequest)
 
 
 def askPasswordWithDialog(parent: QWidget) -> PasswordPrompt:
@@ -72,10 +100,14 @@ class MainWindow(QMainWindow):
         sshConfig: SshConfigEditor,
         knownHostsPath: Path | None,
         passwordPrompt: PasswordPrompt | None = None,
+        firstRunMarker: Path | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._settings = settings
+        # Written once the first-launch key setup has been offered; None turns the walkthrough off.
+        self.firstRunMarker = firstRunMarker
+        self.firstRunPrompts = dialogFirstRunPrompts(self)
         self._hostStore = hostStore
         self._sshConfig = sshConfig
         self._sshConfigHosts = self._loadSshConfigHosts()
@@ -357,6 +389,39 @@ class MainWindow(QMainWindow):
             self.dashboard.showError(name, PASSWORD_REQUIRED)
 
     # SSH keys
+
+    def runFirstLaunchSetup(self) -> str:
+        """On the first launch, make sure ~/.ssh exists and offer to generate a first key.
+
+        Returns "skipped" (already offered, or turned off), "has-keys",
+        "declined", or "generated". The marker is written whatever the
+        answer, so the question is asked once.
+        """
+        marker = self.firstRunMarker
+        if marker is None or marker.exists():
+            return "skipped"
+        try:
+            sshDir = ensureSshDirectory(self._sshConfig.path.parent)
+            marker.parent.mkdir(parents=True, exist_ok=True)
+            marker.write_text(f"first launch {datetime.now():%Y-%m-%d %H:%M}\n", encoding="utf-8")
+        except OSError as error:
+            logger.warning("First-launch setup skipped: %s", error)
+            return "skipped"
+        if findPrivateKeys(sshDir):
+            return "has-keys"
+        message = (
+            f"No SSH key was found in {sshDir}.\n\n"
+            "A key lets you log in to your hosts without typing a password each time. "
+            "Generate one now?\n\n"
+            "Afterwards, the key button on a host's card installs it on that host."
+        )
+        if not self.firstRunPrompts.welcome(message):
+            return "declined"
+        request = self.firstRunPrompts.keyRequest(sshDir)
+        if request is None:
+            return "declined"
+        self.generateKey(request)
+        return "generated"
 
     def _generateKeyDialog(self) -> None:
         dialog = KeyGenerateDialog(parent=self)

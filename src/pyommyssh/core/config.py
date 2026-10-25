@@ -55,6 +55,11 @@ class AppPaths:
         return self.configDir / "hosts.toml"
 
     @property
+    def firstRunMarker(self) -> Path:
+        """Exists once the first-launch key setup has been offered."""
+        return self.configDir / "first_run_done"
+
+    @property
     def logFile(self) -> Path:
         return self.workingDir / "logs" / f"{APP_NAME}.log"
 
