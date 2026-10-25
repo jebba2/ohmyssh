@@ -151,15 +151,19 @@ def buildInstallKeyCommand(publicKey: str) -> str:
     """Return a shell command that appends ``publicKey`` once and fixes permissions.
 
     The lookup matches the key type and material only, so the same key with
-    another comment is recognised as already present. Errors are folded into
-    stdout so the caller sees them.
+    another comment is recognised as already present. A file whose last key
+    has no newline after it gets one first, so the new key never runs into
+    the old one's line. Errors are folded into stdout so the caller sees them.
     """
     keyIdentity = " ".join(publicKey.split()[:2])
+    authorized = "~/.ssh/authorized_keys"
+    # tail -c 1 prints the last byte; a newline disappears in the substitution, anything else does not.
+    endWithNewline = f'if [ -s {authorized} ] && [ -n "$(tail -c 1 {authorized})" ]; then echo >> {authorized}; fi'
     return (
-        "{ umask 077; mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch ~/.ssh/authorized_keys && "
-        f"if grep -qF {_shellQuote(keyIdentity)} ~/.ssh/authorized_keys; then echo {_splitMarker(PRESENT_MARKER)}; "
-        f"else printf '%s\\n' {_shellQuote(publicKey)} >> ~/.ssh/authorized_keys && echo {_splitMarker(INSTALLED_MARKER)}; fi && "
-        "chmod 600 ~/.ssh/authorized_keys; } 2>&1"
+        f"{{ umask 077; mkdir -p ~/.ssh && chmod 700 ~/.ssh && touch {authorized} && "
+        f"if grep -qF {_shellQuote(keyIdentity)} {authorized}; then echo {_splitMarker(PRESENT_MARKER)}; "
+        f"else {endWithNewline} && printf '%s\\n' {_shellQuote(publicKey)} >> {authorized} && "
+        f"echo {_splitMarker(INSTALLED_MARKER)}; fi && chmod 600 {authorized}; }} 2>&1"
     )
 
 

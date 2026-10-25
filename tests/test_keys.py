@@ -93,6 +93,25 @@ def test_parse_install_output() -> None:
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="needs a POSIX shell to run the command")
+def test_install_command_keeps_an_existing_key_whole_when_the_file_lacks_a_final_newline(tmp_path: Path) -> None:
+    environment = {**os.environ, "HOME": str(tmp_path)}
+    bash = shutil.which("bash")
+    assert bash is not None
+    authorized = tmp_path / ".ssh" / "authorized_keys"
+    authorized.parent.mkdir()
+    authorized.write_bytes(b"ssh-rsa AAAAB3OLDKEY")  # no comment and no trailing newline
+    completed = subprocess.run(
+        [bash, "-c", buildInstallKeyCommand(ED25519_KEY)], capture_output=True, text=True, env=environment, check=False
+    )
+    assert parseInstallOutput(completed.stdout + completed.stderr) is True
+    assert authorized.read_bytes() == b"ssh-rsa AAAAB3OLDKEY\n" + ED25519_KEY.encode() + b"\n"
+    # An empty file does not gain a blank first line.
+    authorized.write_bytes(b"")
+    subprocess.run([bash, "-c", buildInstallKeyCommand(RSA_KEY)], capture_output=True, text=True, env=environment, check=False)
+    assert authorized.read_bytes() == RSA_KEY.encode() + b"\n"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="needs a POSIX shell to run the command")
 def test_install_command_runs_idempotently_in_a_real_shell(tmp_path: Path) -> None:
     environment = {**os.environ, "HOME": str(tmp_path)}
     bash = shutil.which("bash")

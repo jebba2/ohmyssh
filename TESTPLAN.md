@@ -118,6 +118,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Choosing the same key again shows "<file> is already on <host>" and the file on the server gains no line
 - [ ] The same key with a different comment is also reported as already there
 - [ ] On the server `~/.ssh` is mode 700 and `authorized_keys` is mode 600 afterwards; other lines in the file are untouched
+- [ ] With an `authorized_keys` whose last key has no newline after it (`printf 'ssh-rsa AAAA... old' > ~/.ssh/authorized_keys`), installing a key leaves the old key on its own line, the new key on the next, and both still log in
 - [ ] After installing, a host that was using a password connects with the key on the next `F5` when the key has a default name or is the host's identity file
 - [ ] Choosing the private key file shows "Could not install ... is a private key; choose the matching .pub file"
 - [ ] On a host that needs a password, the prompt appears once; cancelling shows "Could not install ... Password required"
