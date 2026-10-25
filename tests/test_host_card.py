@@ -154,6 +154,22 @@ def test_files_button_sits_beside_name_and_opens_sftp(qtbot: QtBot) -> None:
     assert blocker.args == [_host()]
 
 
+def test_remove_button_sits_beside_name_and_asks_to_remove_or_hide(qtbot: QtBot) -> None:
+    appHost = Host(name="mine", hostname="m.local", source=HostSource.APP)
+    card = HostCard(appHost)
+    qtbot.addWidget(card)
+    assert card.removeButton.toolTip() == "Remove host"
+    assert not card.removeButton.icon().isNull()
+    assert card.removeButton in _nameRowWidgets(card)
+    with qtbot.waitSignal(card.removeRequested) as blocker:
+        qtbot.mouseClick(card.removeButton, Qt.MouseButton.LeftButton)
+    assert blocker.args == [appHost]
+
+    configCard = HostCard(Host(name="cfg", hostname="c.local", source=HostSource.SSH_CONFIG))
+    qtbot.addWidget(configCard)
+    assert configCard.removeButton.toolTip() == "Hide host"
+
+
 def test_edit_button_is_offered_for_ssh_config_hosts_too(qtbot: QtBot) -> None:
     configHost = Host(name="cfg", hostname="cfg.local", source=HostSource.SSH_CONFIG)
     card = HostCard(configHost)

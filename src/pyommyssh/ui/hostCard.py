@@ -88,9 +88,12 @@ class HostCard(QFrame):
         self.keyButton.clicked.connect(lambda: self.installKeyRequested.emit(self.host))
         self.filesButton = self._makeIconButton("folder", "Browse files")
         self.filesButton.clicked.connect(lambda: self.openSftpRequested.emit(self.host))
+        self.removeButton = self._makeIconButton("trash", self._removeLabel())
+        self.removeButton.clicked.connect(lambda: self.removeRequested.emit(self.host))
         nameRow = QHBoxLayout()
         nameRow.addWidget(self.nameLabel)
         nameRow.addStretch(1)
+        nameRow.addWidget(self.removeButton)
         nameRow.addWidget(self.filesButton)
         nameRow.addWidget(self.keyButton)
         nameRow.addWidget(self.editButton)
@@ -144,6 +147,10 @@ class HostCard(QFrame):
         for widget in (self.forwardsLabel, self.tunnelStatusLabel, self.tunnelButton):
             widget.setVisible(host.hasForwards())
         self.setTunnelStatus(self._tunnelStatus)
+
+    def _removeLabel(self) -> str:
+        """App hosts are deleted; SSH config hosts are only hidden from the dashboard."""
+        return "Remove host" if self.host.source == HostSource.APP else "Hide host"
 
     def _makeIconButton(self, iconName: str, toolTip: str) -> QToolButton:
         button = QToolButton()
@@ -245,6 +252,5 @@ class HostCard(QFrame):
         menu.addAction("Install SSH key...", lambda: self.installKeyRequested.emit(self.host))
         if self.host.hasForwards():
             menu.addAction(self.tunnelButton.text(), self._toggleTunnel)
-        removeLabel = "Remove host" if self.host.source == HostSource.APP else "Hide host"
-        menu.addAction(removeLabel, lambda: self.removeRequested.emit(self.host))
+        menu.addAction(self._removeLabel(), lambda: self.removeRequested.emit(self.host))
         menu.exec(event.globalPos())

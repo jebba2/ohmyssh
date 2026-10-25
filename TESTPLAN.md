@@ -37,6 +37,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Right-click an SSH config host: Hide host asks to confirm, explains that `~/.ssh/config` is not changed, and the card disappears; `hosts.toml` gains `hidden_hosts = ["..."]` and the host stays hidden after a restart
 - [ ] Removing the name from `hidden_hosts` and restarting brings the host back
 - [ ] Edit host has a "Remove host" button for app hosts and a "Hide host" button for SSH config hosts; Add host has neither; the button asks the same confirmation
+- [ ] Every card has a red trash button beside the name whose tooltip reads "Remove host" or "Hide host" to match; clicking it asks the same confirmation
 - [ ] An app host with the same name as an SSH config host replaces it on the dashboard
 - [ ] In Add host, a bad line in Local forwards shows "Local forward: expected [bind_address:]port:host:hostport, got '...'" and the dialog stays open
 - [ ] Saving a host with forwards writes `local_forwards`, `remote_forwards`, and `dynamic_forwards` lists to `hosts.toml`; empty lists are omitted
