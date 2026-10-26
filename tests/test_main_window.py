@@ -455,6 +455,14 @@ def _echoThrough(port: int, payload: bytes = b"ping") -> bytes:
         return connection.recv(1024)
 
 
+def _echoes(port: int) -> bool:
+    """True once a forward on ``port`` carries a ping to the echo server; False while nothing listens yet."""
+    try:
+        return _echoThrough(port) == b"ping"
+    except ConnectionRefusedError:
+        return False
+
+
 def _forwardingHost(
     sshServer: TestSshServer, echoPort: int, localPort: int, identityFile: Path | None = None
 ) -> Host:
@@ -533,8 +541,9 @@ def test_editing_a_host_restarts_its_tunnel_with_the_new_forwards(
 
     edited = _forwardingHost(sshServer, echoServer.port, newPort, clientKeyFile)
     window.saveEditedHost("box", edited)
-    qtbot.waitUntil(lambda: _echoThrough(newPort) == b"ping", timeout=WAIT_MS)
-    assert _tunnelText(window, "box") == "Tunnel active"
+    qtbot.waitUntil(lambda: _echoes(newPort), timeout=WAIT_MS)
+    # The restarted tunnel carries data a moment before its status reaches the card.
+    qtbot.waitUntil(lambda: _tunnelText(window, "box") == "Tunnel active", timeout=WAIT_MS)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", oldPort))
 
