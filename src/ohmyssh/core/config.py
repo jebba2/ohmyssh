@@ -2,7 +2,9 @@
 
 Settings and the app-managed host list live in the per-user config
 directory. Logs and other generated files live in ``working/`` under the
-project root when running from source, or beside the executable when frozen.
+project root when running from source, beside the executable when frozen,
+or under ``~/Library/Application Support`` for a frozen macOS app, whose
+executable sits inside a read-only .app bundle.
 """
 
 from __future__ import annotations
@@ -24,9 +26,13 @@ def projectRoot() -> Path:
     """Return the directory that owns ``working/``.
 
     From source this is the directory containing ``pyproject.toml``. In a
-    PyInstaller build it is the directory containing the executable.
+    PyInstaller build it is the directory containing the executable, except
+    on macOS where the executable lives inside the .app bundle and the
+    per-user Application Support folder is used instead.
     """
     if getattr(sys, "frozen", False):
+        if sys.platform == "darwin":
+            return Path.home() / "Library" / "Application Support" / APP_NAME
         return Path(sys.executable).parent
     for parent in Path(__file__).resolve().parents:
         if (parent / "pyproject.toml").is_file():

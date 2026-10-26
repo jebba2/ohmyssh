@@ -2,7 +2,7 @@
 
 # ohmyssh
 
-A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an SSH client with a live server dashboard, built with PySide6 (Qt), paramiko, and pyte. It runs from source on Windows, macOS, and Linux, and can be packaged as a standalone Windows executable with PyInstaller.
+A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an SSH client with a live server dashboard, built with PySide6 (Qt), paramiko, and pyte. It runs from source on Windows, macOS, and Linux, and can be packaged as a standalone Windows executable or macOS app bundle with PyInstaller.
 
 ## What it does today (Phases 1 and 2)
 
@@ -139,7 +139,7 @@ The three forward lists are optional. A local forward listens on this machine an
 
 ### Logs
 
-Logs go to `working/logs/ohmyssh.log` under the project root when running from source, or beside the executable when packaged.
+Logs go to `working/logs/ohmyssh.log` under the project root when running from source, or beside the executable when packaged. The packaged macOS app cannot write inside its own bundle, so it uses `~/Library/Application Support/ohmyssh/working/logs/ohmyssh.log` instead.
 
 ## Building a standalone Windows executable
 
@@ -147,9 +147,29 @@ Logs go to `working/logs/ohmyssh.log` under the project root when running from s
 uv run python scripts/build_windows.py
 ```
 
-That produces `dist/ohmyssh/ohmyssh.exe` with its support files beside it, using `src/ohmyssh/ui/icons/app.ico` as the executable's icon. After changing the logo in `app.svg`, regenerate the `.ico` with `uv run python scripts/build_icon.py` and commit it; `--png working/preview.png` also writes a preview to look at. Add `--onefile` for a single `dist/ohmyssh.exe`, and `--clean` to discard PyInstaller's cache. The full build log is in `working/build/pyinstaller.log`.
+That produces `dist/ohmyssh/ohmyssh.exe` with its support files beside it, using `src/ohmyssh/ui/icons/app.ico` as the executable's icon. Add `--onefile` for a single `dist/ohmyssh.exe`, and `--clean` to discard PyInstaller's cache. The full build log is in `working/build/pyinstaller.log`.
 
 One-directory builds start faster and are less likely to be quarantined by antivirus software than one-file builds, which unpack to a temp directory on every launch.
+
+## Building a standalone macOS app
+
+```sh
+uv run python scripts/build_macos.py
+```
+
+Run that on a Mac; PyInstaller cannot cross-compile, and the bundle is built for the architecture of the Mac doing the build. It produces `dist/ohmyssh.app`, using `src/ohmyssh/ui/icons/app.icns` as the app icon and `com.rev-x.ohmyssh` as the bundle identifier. The same `--onefile` and `--clean` flags apply, and the log is in `working/build/pyinstaller.log` as on Windows.
+
+The bundle is ad-hoc signed, which is enough to run it on the Mac that built it. On another Mac, Gatekeeper quarantines it until the user right-clicks the app and chooses Open the first time.
+
+## Regenerating the icons
+
+After changing the logo in `src/ohmyssh/ui/icons/app.svg`, regenerate both icon files and commit them:
+
+```sh
+uv run python scripts/build_icon.py
+```
+
+That writes `app.ico` for Windows and `app.icns` for macOS next to the SVG. `--png working/preview.png` also writes a 256 px preview to look at.
 
 ## Examples
 
@@ -182,7 +202,7 @@ src/ohmyssh/core/   hosts, sshconfig, forwards, metrics, ssh, connections, tunne
 src/ohmyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftpTab, sftpBridge, mainWindow, workers
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples
-scripts/              build_windows.py
+scripts/              build_windows.py, build_macos.py, build_icon.py
 working/              logs, build artifacts (ignored by git)
 ```
 

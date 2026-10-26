@@ -15,84 +15,25 @@ antivirus software than one-file builds.
 
 from __future__ import annotations
 
-import argparse
-import os
-import subprocess
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ENTRY_POINT = PROJECT_ROOT / "src" / "ohmyssh" / "__main__.py"
-ICON_DIR = PROJECT_ROOT / "src" / "ohmyssh" / "ui" / "icons"
-WORK_DIR = PROJECT_ROOT / "working" / "build"
-DIST_DIR = PROJECT_ROOT / "dist"
-LOG_FILE = WORK_DIR / "pyinstaller.log"
-APP_NAME = "ohmyssh"
-TAIL_LINES = 25
+from standalone_build import APP_NAME, DIST_DIR, ICON_DIR, baseCommand, parseArguments, runBuild
 
 
 def pyinstallerCommand(oneFile: bool, clean: bool) -> list[str]:
     """Return the PyInstaller command line for the requested build."""
-    command = [
-        sys.executable,
-        "-m",
-        "PyInstaller",
-        str(ENTRY_POINT),
-        "--name",
-        APP_NAME,
-        "--windowed",
-        "--noconfirm",
-        "--paths",
-        str(PROJECT_ROOT / "src"),
-        "--workpath",
-        str(WORK_DIR),
-        "--specpath",
-        str(WORK_DIR),
-        "--distpath",
-        str(DIST_DIR),
-        "--add-data",
-        f"{ICON_DIR}{os.pathsep}ohmyssh/ui/icons",
-        "--icon",
-        str(ICON_DIR / "app.ico"),
-    ]
-    if oneFile:
-        command.append("--onefile")
-    if clean:
-        command.append("--clean")
-    return command
+    return baseCommand(oneFile, clean) + ["--icon", str(ICON_DIR / "app.ico")]
 
 
-def directorySize(path: Path) -> int:
-    """Return the total size in bytes of a file or directory tree."""
-    if path.is_file():
-        return path.stat().st_size
-    return sum(child.stat().st_size for child in path.rglob("*") if child.is_file())
+def outputPath(oneFile: bool) -> Path:
+    """Return what PyInstaller produces: a single .exe or a folder with the .exe inside."""
+    return DIST_DIR / f"{APP_NAME}.exe" if oneFile else DIST_DIR / APP_NAME
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--onefile", action="store_true", help="produce a single executable")
-    parser.add_argument("--clean", action="store_true", help="clear the PyInstaller cache first")
-    args = parser.parse_args()
-
-    WORK_DIR.mkdir(parents=True, exist_ok=True)
-    command = pyinstallerCommand(args.onefile, args.clean)
-    print(f"Building {APP_NAME} ({'one file' if args.onefile else 'one directory'})...")
-    with LOG_FILE.open("w", encoding="utf-8") as log:
-        result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, cwd=PROJECT_ROOT)
-
-    if result.returncode != 0:
-        print(f"PyInstaller failed with exit code {result.returncode}. Last {TAIL_LINES} log lines:")
-        lines = LOG_FILE.read_text(encoding="utf-8", errors="replace").splitlines()
-        print("\n".join(lines[-TAIL_LINES:]))
-        print(f"Full log: {LOG_FILE}")
-        return result.returncode
-
-    output = DIST_DIR / f"{APP_NAME}.exe" if args.onefile else DIST_DIR / APP_NAME
-    sizeMb = directorySize(output) / (1024 * 1024)
-    print(f"Built {output} ({sizeMb:.0f} MB)")
-    print(f"Log: {LOG_FILE}")
-    return 0
+    args = parseArguments(__doc__ or "")
+    return runBuild(pyinstallerCommand(args.onefile, args.clean), outputPath(args.onefile), args.onefile)
 
 
 if __name__ == "__main__":

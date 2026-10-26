@@ -1,7 +1,7 @@
 """SVG icons shipped with the app, looked up by name.
 
 The files live next to this module so PyInstaller can bundle the folder
-with a single ``--add-data`` entry (see scripts/build_windows.py).
+with a single ``--add-data`` entry (see scripts/standalone_build.py).
 """
 
 from __future__ import annotations

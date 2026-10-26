@@ -1,5 +1,6 @@
 """Tests for application settings and file locations."""
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -83,3 +84,25 @@ def test_legacy_config_dir_is_moved_once_and_never_over_an_existing_one(tmp_path
     assert migrateLegacyConfigDir(paths) is False
     assert (paths.configDir / "hosts.toml").read_text().startswith("[[hosts]]")
     assert (legacy / "hosts.toml").read_text() == "stale"
+
+
+def test_bundled_mac_app_keeps_generated_files_in_application_support(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Inside a .app bundle the executable's folder is not a place to write logs."""
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "ohmyssh.app" / "Contents" / "MacOS" / "ohmyssh"))
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    paths = AppPaths.default()
+    assert paths.workingDir == tmp_path / "home" / "Library" / "Application Support" / "ohmyssh" / "working"
+
+
+def test_frozen_app_elsewhere_keeps_generated_files_beside_the_executable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "ohmyssh" / "ohmyssh.exe"))
+    paths = AppPaths.default()
+    assert paths.workingDir == tmp_path / "ohmyssh" / "working"

@@ -57,3 +57,46 @@ def test_committed_ico_matches_the_svg() -> None:
     assert icoPath.is_file(), "run scripts/build_icon.py to create app.ico"
     header = icoPath.read_bytes()[:6]
     assert struct.unpack("<HHH", header) == (0, 1, 7)
+
+
+def _icnsEntries(data: bytes) -> list[tuple[str, int]]:
+    """Return (type, png pixel size) for every entry in an .icns file."""
+    assert data[:4] == b"icns"
+    assert struct.unpack(">I", data[4:8])[0] == len(data)
+    entries: list[tuple[str, int]] = []
+    offset = 8
+    while offset < len(data):
+        entryType = data[offset : offset + 4].decode("ascii")
+        length = struct.unpack(">I", data[offset + 4 : offset + 8])[0]
+        image = data[offset + 8 : offset + length]
+        assert image.startswith(PNG_SIGNATURE)
+        pngWidth, pngHeight = struct.unpack(">II", image[16:24])
+        assert pngWidth == pngHeight
+        entries.append((entryType, pngWidth))
+        offset += length
+    assert offset == len(data)
+    return entries
+
+
+def test_script_writes_a_png_backed_icns(tmp_path: Path) -> None:
+    icnsPath = tmp_path / "out" / "app.icns"
+    completed = _run("--out", str(tmp_path / "out" / "app.ico"), "--icns", str(icnsPath))
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert str(icnsPath) in completed.stdout
+
+    assert _icnsEntries(icnsPath.read_bytes()) == [
+        ("icp4", 16),
+        ("icp5", 32),
+        ("ic12", 64),
+        ("ic07", 128),
+        ("ic08", 256),
+        ("ic09", 512),
+        ("ic10", 1024),
+    ]
+
+
+def test_committed_icns_matches_the_svg() -> None:
+    """The .icns in the repo must be regenerated whenever app.svg changes."""
+    icnsPath = SCRIPT.parent.parent / "src" / "ohmyssh" / "ui" / "icons" / "app.icns"
+    assert icnsPath.is_file(), "run scripts/build_icon.py to create app.icns"
+    assert len(_icnsEntries(icnsPath.read_bytes())) == 7

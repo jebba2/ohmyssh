@@ -205,6 +205,11 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [x] Logs appear in `working/logs/` beside the executable
 - [ ] `--onefile` produces `dist/ohmyssh.exe` that starts
 - [ ] A failed build prints the last log lines and the log path
+- [x] `uv run python scripts/build_macos.py` on a Mac finishes and prints the output path and size
+- [x] `dist/ohmyssh.app` starts, shows the padlock icon in the Dock, and `Info.plist` names `com.rev-x.ohmyssh`
+- [ ] The packaged Mac app reads `~/.ssh/config`, shows cards, and opens a terminal
+- [x] The packaged Mac app logs to `~/Library/Application Support/ohmyssh/working/logs/` and writes nothing inside the bundle
+- [x] `uv run python scripts/build_icon.py` writes `app.ico` and `app.icns`, and `iconutil -c iconset` reads the `.icns` back with every size intact
 
 ## Examples
 
