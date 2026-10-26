@@ -11,7 +11,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 - [x] `uv run ohmyssh` opens the main window with a Dashboard tab
 - [ ] `uv run python -m ohmyssh` does the same
-- [ ] The window title bar and the taskbar show the padlock-over-"ohmyssh" logo on a teal-to-blue tile, including when run from source with `uv run ohmyssh` (not the Python icon)
+- [ ] The window title bar and the taskbar show the "ohmy" over "ssh" logo with a small padlock on a teal-to-blue tile, including when run from source with `uv run ohmyssh` (not the Python icon)
 - [ ] Pinning the running app to the taskbar keeps the logo on the pinned button
 - [ ] The packaged `ohmyssh.exe` shows the same icon in Explorer and the taskbar
 - [x] `uv run python scripts/build_icon.py` regenerates `app.ico` with seven sizes and prints what it wrote
@@ -208,7 +208,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] `--onefile` produces `dist/ohmyssh.exe` that starts
 - [ ] A failed build prints the last log lines and the log path
 - [x] `uv run python scripts/build_macos.py` on a Mac finishes and prints the output path and size
-- [x] `dist/ohmyssh.app` starts, shows the padlock icon in the Dock, and `Info.plist` names `com.rev-x.ohmyssh`
+- [x] `dist/ohmyssh.app` starts, shows the ohmyssh logo in the Dock, and `Info.plist` names `com.rev-x.ohmyssh`
 - [ ] The packaged Mac app reads `~/.ssh/config`, shows cards, and opens a terminal
 - [x] The packaged Mac app logs to `~/Library/Application Support/ohmyssh/working/logs/` and writes nothing inside the bundle
 - [x] `uv run python scripts/build_icon.py` writes `app.ico` and `app.icns`, and `iconutil -c iconset` reads the `.icns` back with every size intact
