@@ -11,7 +11,7 @@ import pytest
 
 import paramiko
 
-from pyommyssh.core.keys import (
+from ohmyssh.core.keys import (
     KeyInstallError,
     KeyType,
     buildInstallKeyCommand,
@@ -24,7 +24,7 @@ from pyommyssh.core.keys import (
     parseInstallOutput,
     readPublicKey,
 )
-from pyommyssh.core.ssh import SshClient, SshCredentials
+from ohmyssh.core.ssh import SshClient, SshCredentials
 from tests.sshserver import TEST_PASSWORD, TestSshServer, hostFor
 
 ED25519_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxkZXN0cmlwcGVkLWZha2Uta2V5LWJ5dGVzLWhlcmUx jeb@laptop"
@@ -75,9 +75,9 @@ def test_install_command_appends_once_and_fixes_permissions() -> None:
     assert "grep -qF 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxkZXN0cmlwcGVkLWZha2Uta2V5LWJ5dGVzLWhlcmUx'" in command
     assert f"'{ED25519_KEY}'" in command
     # The markers are assembled by the shell, so a server echoing the command cannot fake success.
-    assert "PYOMMYSSH:INSTALLED" not in command
-    assert "PYOMMYSSH:PRESENT" not in command
-    assert "echo PYOMMYSSH''" in command
+    assert "OHMYSSH:INSTALLED" not in command
+    assert "OHMYSSH:PRESENT" not in command
+    assert "echo OHMYSSH''" in command
 
 
 def test_install_command_quotes_single_quotes_in_comments() -> None:
@@ -86,8 +86,8 @@ def test_install_command_quotes_single_quotes_in_comments() -> None:
 
 
 def test_parse_install_output() -> None:
-    assert parseInstallOutput("PYOMMYSSH:INSTALLED\n") is True
-    assert parseInstallOutput("some noise\nPYOMMYSSH:PRESENT\n") is False
+    assert parseInstallOutput("OHMYSSH:INSTALLED\n") is True
+    assert parseInstallOutput("some noise\nOHMYSSH:PRESENT\n") is False
     with pytest.raises(KeyInstallError, match="Permission denied"):
         parseInstallOutput("bash: /home/x/.ssh/authorized_keys: Permission denied\n")
     with pytest.raises(KeyInstallError, match="no output"):
@@ -135,7 +135,7 @@ def test_install_command_runs_idempotently_in_a_real_shell(tmp_path: Path) -> No
 
 
 def test_install_public_key_over_ssh(sshServer: TestSshServer, tmp_path: Path) -> None:
-    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n" if "authorized_keys" in command else ""
+    sshServer.execOutput = lambda command: "OHMYSSH:INSTALLED\n" if "authorized_keys" in command else ""
     client = SshClient(
         hostFor(sshServer), credentials=SshCredentials(password=TEST_PASSWORD), knownHostsPath=tmp_path / "kh"
     )

@@ -53,7 +53,7 @@ def test_script_rejects_a_bad_svg(tmp_path: Path) -> None:
 
 def test_committed_ico_matches_the_svg() -> None:
     """The .ico in the repo must be regenerated whenever app.svg changes."""
-    icoPath = SCRIPT.parent.parent / "src" / "pyommyssh" / "ui" / "icons" / "app.ico"
+    icoPath = SCRIPT.parent.parent / "src" / "ohmyssh" / "ui" / "icons" / "app.ico"
     assert icoPath.is_file(), "run scripts/build_icon.py to create app.ico"
     header = icoPath.read_bytes()[:6]
     assert struct.unpack("<HHH", header) == (0, 1, 7)

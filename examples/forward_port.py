@@ -21,12 +21,12 @@ import threading
 import time
 from pathlib import Path
 
-from pyommyssh.core.config import AppPaths
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
-from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
+from ohmyssh.core.config import AppPaths
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
+from ohmyssh.core.ssh import SshCredentials
+from ohmyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
 
 FLAG_KINDS = {"-L": ForwardKind.LOCAL, "-R": ForwardKind.REMOTE, "-D": ForwardKind.DYNAMIC}
 

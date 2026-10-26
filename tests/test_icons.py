@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.ui.icons import ICON_NAMES, iconPath, loadIcon
+from ohmyssh.ui.icons import ICON_NAMES, iconPath, loadIcon
 
 
 @pytest.mark.parametrize("name", sorted(ICON_NAMES))

@@ -23,22 +23,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.config import AppSettings
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore, mergeHosts
-from pyommyssh.core.keys import KeyGenerateRequest, ensureSshDirectory, findPrivateKeys, readPublicKey
-from pyommyssh.core.metrics import HostMetrics
-from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.core.sshconfig import SshConfigEditor, SshConfigError
-from pyommyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
-from pyommyssh.ui.dashboard import DashboardView
-from pyommyssh.ui.globalSettingsDialog import GlobalSettingsDialog
-from pyommyssh.ui.hostDialog import HostDialog
-from pyommyssh.ui.keyGenerateDialog import KeyGenerateDialog
-from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
-from pyommyssh.ui.sftpTab import SftpTab, dialogSftpPrompts
-from pyommyssh.ui.terminalTab import TerminalTab
-from pyommyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, TunnelSignals
+from ohmyssh.core.config import AppSettings
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore, mergeHosts
+from ohmyssh.core.keys import KeyGenerateRequest, ensureSshDirectory, findPrivateKeys, readPublicKey
+from ohmyssh.core.metrics import HostMetrics
+from ohmyssh.core.ssh import SshCredentials
+from ohmyssh.core.sshconfig import SshConfigEditor, SshConfigError
+from ohmyssh.core.tunnel import TunnelManager, TunnelState, TunnelStatus
+from ohmyssh.ui.dashboard import DashboardView
+from ohmyssh.ui.globalSettingsDialog import GlobalSettingsDialog
+from ohmyssh.ui.hostDialog import HostDialog
+from ohmyssh.ui.keyGenerateDialog import KeyGenerateDialog
+from ohmyssh.ui.searchDialog import SearchDialog, SearchEntry
+from ohmyssh.ui.sftpTab import SftpTab, dialogSftpPrompts
+from ohmyssh.ui.terminalTab import TerminalTab
+from ohmyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, TunnelSignals
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def dialogFirstRunPrompts(parent: QWidget) -> FirstRunPrompts:
     """First-launch prompts that use dialogs on ``parent``."""
 
     def welcome(message: str) -> bool:
-        answer = QMessageBox.question(parent, "Welcome to pyommyssh", message)
+        answer = QMessageBox.question(parent, "Welcome to ohmyssh", message)
         return answer == QMessageBox.StandardButton.Yes
 
     def keyRequest(sshDir: Path) -> KeyGenerateRequest | None:
@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         self._tunnelSignals.statusChanged.connect(self._onTunnelStatus)
         self.tunnels = TunnelManager(self._pool, self._tunnelSignals.statusChanged.emit)
 
-        self.setWindowTitle("pyommyssh")
+        self.setWindowTitle("ohmyssh")
         self.resize(1100, 720)
 
         self.dashboard = DashboardView()

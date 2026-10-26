@@ -13,11 +13,11 @@ import getpass
 import sys
 from pathlib import Path
 
-from pyommyssh.core.config import AppPaths
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
-from pyommyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
-from pyommyssh.core.ssh import SshAuthError, SshCredentials, SshError
+from ohmyssh.core.config import AppPaths
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
+from ohmyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
+from ohmyssh.core.ssh import SshAuthError, SshCredentials, SshError
 
 
 def main() -> int:

@@ -5,11 +5,11 @@ from __future__ import annotations
 from PySide6.QtCore import Qt
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host, HostSource
-from pyommyssh.core.metrics import HostMetrics, ProcessInfo
-from pyommyssh.core.tunnel import TunnelState, TunnelStatus
-from pyommyssh.ui.hostCard import HostCard, usageLevel
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import Host, HostSource
+from ohmyssh.core.metrics import HostMetrics, ProcessInfo
+from ohmyssh.core.tunnel import TunnelState, TunnelStatus
+from ohmyssh.ui.hostCard import HostCard, usageLevel
 
 METRICS = HostMetrics(
     osName="Ubuntu 24.04.1 LTS",

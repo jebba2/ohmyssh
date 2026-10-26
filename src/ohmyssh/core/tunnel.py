@@ -23,11 +23,11 @@ from typing import Protocol
 
 import paramiko
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.socks import SocksError, SocksRequest, readSocksRequest, sendSocksReply
-from pyommyssh.core.ssh import Address, SshAuthError, SshClient, SshError
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.socks import SocksError, SocksRequest, readSocksRequest, sendSocksReply
+from ohmyssh.core.ssh import Address, SshAuthError, SshClient, SshError
 
 logger = logging.getLogger(__name__)
 

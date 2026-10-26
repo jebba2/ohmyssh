@@ -26,7 +26,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 from pyte.screens import Char
 
-from pyommyssh.core.terminal import (
+from ohmyssh.core.terminal import (
     SCROLLBACK_LINES,
     CellPosition,
     Selection,

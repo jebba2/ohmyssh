@@ -1,5 +1,5 @@
 [project]
-name = "pyommyssh"
+name = "ohmyssh"
 version = "0.1.0"
 description = "Python desktop GUI port of OmnySSH: an SSH client and server dashboard"
 authors = [
@@ -14,7 +14,7 @@ dependencies = [
 ]
 
 [project.scripts]
-pyommyssh = "pyommyssh.app:main"
+ohmyssh = "ohmyssh.app:main"
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]

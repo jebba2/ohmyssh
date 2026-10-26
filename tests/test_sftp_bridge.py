@@ -8,11 +8,11 @@ from pathlib import Path
 import pytest
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.sftp import FileEntry, TransferProgress, TransferResult
-from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.ui.sftpBridge import SftpBridge
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.sftp import FileEntry, TransferProgress, TransferResult
+from ohmyssh.core.ssh import SshCredentials
+from ohmyssh.ui.sftpBridge import SftpBridge
 from tests.sshserver import TEST_PASSWORD, TestSshServer, hostFor
 
 WAIT_MS = 10000

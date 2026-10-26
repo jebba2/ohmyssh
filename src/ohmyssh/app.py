@@ -9,18 +9,18 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from pyommyssh.core.config import AppPaths, AppSettings, loadSettings
-from pyommyssh.core.hosts import HostStore
-from pyommyssh.core.sshconfig import SshConfigEditor
-from pyommyssh.ui.icons import loadIcon
-from pyommyssh.ui.mainWindow import MainWindow
-from pyommyssh.ui.theme import DARK_STYLESHEET
+from ohmyssh.core.config import AppPaths, AppSettings, loadSettings, migrateLegacyConfigDir
+from ohmyssh.core.hosts import HostStore
+from ohmyssh.core.sshconfig import SshConfigEditor
+from ohmyssh.ui.icons import loadIcon
+from ohmyssh.ui.mainWindow import MainWindow
+from ohmyssh.ui.theme import DARK_STYLESHEET
 
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUPS = 3
 # Windows groups taskbar buttons by this ID; without our own, a run from
 # source is grouped under python.exe and shows Python's icon.
-APP_USER_MODEL_ID = "pyommyssh.desktop"
+APP_USER_MODEL_ID = "ohmyssh.desktop"
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +56,11 @@ def main() -> int:
     """Run the GUI and return the process exit code."""
     paths = AppPaths.default()
     configureLogging(paths.logFile)
+    if migrateLegacyConfigDir(paths):
+        logger.info("Moved the settings folder from the old app name to %s", paths.configDir)
     registerWindowsAppId()
     app = QApplication(sys.argv)
-    app.setApplicationName("pyommyssh")
+    app.setApplicationName("ohmyssh")
     app.setWindowIcon(loadIcon("app"))
     app.setStyleSheet(DARK_STYLESHEET)
 

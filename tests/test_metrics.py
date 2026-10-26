@@ -1,6 +1,6 @@
 """Tests for the remote probe script and metric parsers."""
 
-from pyommyssh.core.metrics import (
+from ohmyssh.core.metrics import (
     HostMetrics,
     ProcessInfo,
     buildProbeScript,
@@ -175,10 +175,10 @@ def test_processes_skip_malformed_lines() -> None:
 def test_probe_output_sections() -> None:
     text = (
         "ignored preamble\n"
-        "===PYOMMYSSH:OS===\n"
+        "===OHMYSSH:OS===\n"
         'PRETTY_NAME="Ubuntu"\n'
-        "===PYOMMYSSH:EMPTY===\n"
-        "===PYOMMYSSH:DF===\n"
+        "===OHMYSSH:EMPTY===\n"
+        "===OHMYSSH:DF===\n"
         "line one\nline two\n"
     )
     sections = parseProbeOutput(text)
@@ -193,7 +193,7 @@ def test_probe_output_garbage() -> None:
 def test_probe_script_contains_every_section_marker() -> None:
     script = buildProbeScript()
     for section in ["OS", "CPU", "MEM", "DISK", "UPTIME", "LOAD", "DOCKER", "PROCS"]:
-        assert f"===PYOMMYSSH:{section}===" in script
+        assert f"===OHMYSSH:{section}===" in script
     assert "df -k /" in script
     assert "2>/dev/null" in script
 
@@ -201,21 +201,21 @@ def test_probe_script_contains_every_section_marker() -> None:
 def test_metrics_from_probe_output_full() -> None:
     text = "\n".join(
         [
-            "===PYOMMYSSH:OS===",
+            "===OHMYSSH:OS===",
             OS_RELEASE,
-            "===PYOMMYSSH:CPU===",
+            "===OHMYSSH:CPU===",
             LINUX_TOP,
-            "===PYOMMYSSH:MEM===",
+            "===OHMYSSH:MEM===",
             LINUX_FREE,
-            "===PYOMMYSSH:DISK===",
+            "===OHMYSSH:DISK===",
             DF_OUTPUT,
-            "===PYOMMYSSH:UPTIME===",
+            "===OHMYSSH:UPTIME===",
             " 09:12:01 up 12 days,  3:04,  1 user,  load average: 0.52, 0.58, 0.59",
-            "===PYOMMYSSH:LOAD===",
+            "===OHMYSSH:LOAD===",
             "0.52 0.58 0.59 2/412 12345",
-            "===PYOMMYSSH:DOCKER===",
+            "===OHMYSSH:DOCKER===",
             "3",
-            "===PYOMMYSSH:PROCS===",
+            "===OHMYSSH:PROCS===",
             PS_OUTPUT,
         ]
     )
@@ -245,7 +245,7 @@ def test_metrics_from_probe_output_empty_is_all_unknown() -> None:
 
 
 def test_metrics_load_falls_back_to_uptime_when_loadavg_missing() -> None:
-    text = "===PYOMMYSSH:UPTIME===\n09:12:01 up 3 days, load average: 1.5, 1.0, 0.5\n"
+    text = "===OHMYSSH:UPTIME===\n09:12:01 up 3 days, load average: 1.5, 1.0, 0.5\n"
     metrics = metricsFromProbeOutput(text)
     assert metrics.loadAverage == (1.5, 1.0, 0.5)
     assert metrics.uptime == "3 days"

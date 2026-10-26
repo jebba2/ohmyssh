@@ -8,10 +8,10 @@ from pathlib import Path
 import paramiko
 import pytest
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import GlobalSettings, Host, resolveJumpChain
-from pyommyssh.core.keys import KeyType, generateKeyPair
-from pyommyssh.core.ssh import SshAuthError, SshCredentials, SshError
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import GlobalSettings, Host, resolveJumpChain
+from ohmyssh.core.keys import KeyType, generateKeyPair
+from ohmyssh.core.ssh import SshAuthError, SshCredentials, SshError
 from tests.sshserver import EXEC_PREFIX, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor as _host
 
 PASSPHRASE = "open sesame"

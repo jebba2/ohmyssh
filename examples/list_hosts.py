@@ -1,4 +1,4 @@
-"""Print every host pyommyssh knows about, from ~/.ssh/config and hosts.toml.
+"""Print every host ohmyssh knows about, from ~/.ssh/config and hosts.toml.
 
 Run from the project root:
 
@@ -7,8 +7,8 @@ Run from the project root:
 
 from __future__ import annotations
 
-from pyommyssh.core.config import AppPaths
-from pyommyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
+from ohmyssh.core.config import AppPaths
+from ohmyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
 
 
 def main() -> None:

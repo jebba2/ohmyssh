@@ -16,10 +16,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.hosts import Host, HostSource
-from pyommyssh.core.metrics import HostMetrics
-from pyommyssh.core.tunnel import TunnelState, TunnelStatus
-from pyommyssh.ui.icons import loadIcon
+from ohmyssh.core.hosts import Host, HostSource
+from ohmyssh.core.metrics import HostMetrics
+from ohmyssh.core.tunnel import TunnelState, TunnelStatus
+from ohmyssh.ui.icons import loadIcon
 
 WARN_THRESHOLD = 60.0
 CRITICAL_THRESHOLD = 85.0

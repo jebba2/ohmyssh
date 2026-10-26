@@ -6,10 +6,10 @@ import paramiko
 from PySide6.QtCore import QThreadPool, Signal
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host
-from pyommyssh.ui.terminalWidget import TerminalWidget
-from pyommyssh.ui.workers import ShellOpener, TerminalReader
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import Host
+from ohmyssh.ui.terminalWidget import TerminalWidget
+from ohmyssh.ui.workers import ShellOpener, TerminalReader
 
 READER_STOP_TIMEOUT_MS = 2000
 

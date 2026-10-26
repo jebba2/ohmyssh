@@ -8,7 +8,7 @@ from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import QDialog, QLineEdit, QListWidget, QListWidgetItem, QVBoxLayout, QWidget
 
-from pyommyssh.core.hosts import Host
+from ohmyssh.core.hosts import Host
 
 
 @dataclass(frozen=True)

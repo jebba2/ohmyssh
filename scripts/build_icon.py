@@ -1,6 +1,6 @@
 """Render the app logo SVG into a multi-size Windows .ico file.
 
-Run this after changing ``src/pyommyssh/ui/icons/app.svg`` so the packaged
+Run this after changing ``src/ohmyssh/ui/icons/app.svg`` so the packaged
 executable picks up the new look; the .ico is committed because PyInstaller
 needs it at build time and the SVG alone will not do on Windows.
 
@@ -22,8 +22,8 @@ import tempfile
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_SVG = PROJECT_ROOT / "src" / "pyommyssh" / "ui" / "icons" / "app.svg"
-DEFAULT_ICO = PROJECT_ROOT / "src" / "pyommyssh" / "ui" / "icons" / "app.ico"
+DEFAULT_SVG = PROJECT_ROOT / "src" / "ohmyssh" / "ui" / "icons" / "app.svg"
+DEFAULT_ICO = PROJECT_ROOT / "src" / "ohmyssh" / "ui" / "icons" / "app.ico"
 ICON_SIZES = (16, 24, 32, 48, 64, 128, 256)
 PREVIEW_SIZE = 256
 

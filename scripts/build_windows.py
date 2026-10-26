@@ -1,4 +1,4 @@
-"""Build a standalone Windows executable of pyommyssh with PyInstaller.
+"""Build a standalone Windows executable of ohmyssh with PyInstaller.
 
 When to use: after a change you want to ship as a double-clickable app, or
 to check that packaging still works. Run it from the project root:
@@ -22,12 +22,12 @@ import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-ENTRY_POINT = PROJECT_ROOT / "src" / "pyommyssh" / "__main__.py"
-ICON_DIR = PROJECT_ROOT / "src" / "pyommyssh" / "ui" / "icons"
+ENTRY_POINT = PROJECT_ROOT / "src" / "ohmyssh" / "__main__.py"
+ICON_DIR = PROJECT_ROOT / "src" / "ohmyssh" / "ui" / "icons"
 WORK_DIR = PROJECT_ROOT / "working" / "build"
 DIST_DIR = PROJECT_ROOT / "dist"
 LOG_FILE = WORK_DIR / "pyinstaller.log"
-APP_NAME = "pyommyssh"
+APP_NAME = "ohmyssh"
 TAIL_LINES = 25
 
 
@@ -51,7 +51,7 @@ def pyinstallerCommand(oneFile: bool, clean: bool) -> list[str]:
         "--distpath",
         str(DIST_DIR),
         "--add-data",
-        f"{ICON_DIR}{os.pathsep}pyommyssh/ui/icons",
+        f"{ICON_DIR}{os.pathsep}ohmyssh/ui/icons",
         "--icon",
         str(ICON_DIR / "app.ico"),
     ]

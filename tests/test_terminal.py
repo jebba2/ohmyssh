@@ -1,6 +1,6 @@
 """Tests for the terminal emulation session and keyboard encoding."""
 
-from pyommyssh.core.terminal import (
+from ohmyssh.core.terminal import (
     CellPosition,
     Selection,
     TerminalSession,

@@ -23,7 +23,7 @@ from paramiko.common import (
     OPEN_SUCCEEDED,
 )
 
-from pyommyssh.core.hosts import Host
+from ohmyssh.core.hosts import Host
 from tests.sftpserver import DirectorySftpServer
 
 TEST_USER = "tester"

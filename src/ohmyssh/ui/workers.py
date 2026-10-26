@@ -7,12 +7,12 @@ from pathlib import Path
 import paramiko
 from PySide6.QtCore import QObject, QRunnable, QThread, Signal
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.keys import KeyGenerateRequest, KeyInstallError, generateKeyPair, installPublicKey
-from pyommyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
-from pyommyssh.core.sftp import listLocalDir
-from pyommyssh.core.ssh import SshAuthError, SshError
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.keys import KeyGenerateRequest, KeyInstallError, generateKeyPair, installPublicKey
+from ohmyssh.core.metrics import buildProbeScript, metricsFromProbeOutput
+from ohmyssh.core.sftp import listLocalDir
+from ohmyssh.core.ssh import SshAuthError, SshError
 
 READ_CHUNK_BYTES = 4096
 

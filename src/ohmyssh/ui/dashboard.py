@@ -6,10 +6,10 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import QGridLayout, QLabel, QScrollArea, QWidget
 
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.metrics import HostMetrics
-from pyommyssh.core.tunnel import TunnelStatus
-from pyommyssh.ui.hostCard import HostCard
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.metrics import HostMetrics
+from ohmyssh.core.tunnel import TunnelStatus
+from ohmyssh.ui.hostCard import HostCard
 
 CARD_MIN_WIDTH = 300
 UNTAGGED_GROUP = "Untagged"

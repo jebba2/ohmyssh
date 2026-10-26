@@ -15,7 +15,9 @@ from pathlib import Path
 
 import tomli_w
 
-APP_NAME = "pyommyssh"
+APP_NAME = "ohmyssh"
+# The app's name before 2026-10-25; a config folder left under it is moved once.
+LEGACY_APP_NAME = "pyommyssh"
 
 
 def projectRoot() -> Path:
@@ -62,6 +64,19 @@ class AppPaths:
     @property
     def logFile(self) -> Path:
         return self.workingDir / "logs" / f"{APP_NAME}.log"
+
+
+def migrateLegacyConfigDir(paths: AppPaths) -> bool:
+    """Move a config folder left by the old app name to the current one.
+
+    Only done while the current folder does not exist, so nothing is ever
+    overwritten. Returns True if a folder was moved.
+    """
+    legacy = paths.configDir.parent / LEGACY_APP_NAME
+    if paths.configDir.exists() or not legacy.is_dir():
+        return False
+    legacy.rename(paths.configDir)
+    return True
 
 
 @dataclass(frozen=True)

@@ -11,8 +11,8 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from pyommyssh.core.hosts import GlobalSettings, Host, resolveJumpChain
-from pyommyssh.core.ssh import SshClient, SshCredentials, SshError, passphraseUnlocks
+from ohmyssh.core.hosts import GlobalSettings, Host, resolveJumpChain
+from ohmyssh.core.ssh import SshClient, SshCredentials, SshError, passphraseUnlocks
 
 
 class ConnectionPool:

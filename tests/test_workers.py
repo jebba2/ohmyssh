@@ -7,12 +7,12 @@ from pathlib import Path
 from PySide6.QtCore import QThreadPool
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.metrics import HostMetrics
-from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.core.keys import KeyType, readPublicKey
-from pyommyssh.ui.keyGenerateDialog import KeyGenerateRequest
-from pyommyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, ShellOpener, TerminalReader
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.metrics import HostMetrics
+from ohmyssh.core.ssh import SshCredentials
+from ohmyssh.core.keys import KeyType, readPublicKey
+from ohmyssh.ui.keyGenerateDialog import KeyGenerateRequest
+from ohmyssh.ui.workers import KeyGenerateWorker, KeyInstallWorker, MetricsWorker, ShellOpener, TerminalReader
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TestSshServer, hostFor
 
 PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGxkZXN0cmlwcGVkLWZha2Uta2V5LWJ5dGVzLWhlcmUx jeb@laptop"
@@ -29,7 +29,7 @@ def test_metrics_worker_reports_metrics(qtbot: QtBot, sshServer: TestSshServer, 
     name, metrics = blocker.args
     assert name == "box"
     assert isinstance(metrics, HostMetrics)
-    assert any("===PYOMMYSSH:CPU===" in command for command in sshServer.commands)
+    assert any("===OHMYSSH:CPU===" in command for command in sshServer.commands)
     pool.closeAll()
 
 
@@ -45,7 +45,7 @@ def test_metrics_worker_reports_auth_required(
 
 
 def test_metrics_worker_reports_failure(qtbot: QtBot, tmp_path: Path) -> None:
-    from pyommyssh.core.hosts import Host
+    from ohmyssh.core.hosts import Host
 
     host = Host(name="dead", hostname="127.0.0.1", user="x", port=1)
     pool = ConnectionPool(lambda: [host], knownHostsPath=tmp_path / "known_hosts")
@@ -99,7 +99,7 @@ def test_shell_opener_reports_auth_required(
 def test_key_install_worker_reports_outcome(
     qtbot: QtBot, sshServer: TestSshServer, tmp_path: Path
 ) -> None:
-    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n"
+    sshServer.execOutput = lambda command: "OHMYSSH:INSTALLED\n"
     host = hostFor(sshServer)
     pool = ConnectionPool(lambda: [host], knownHostsPath=tmp_path / "known_hosts")
     pool.setCredentials(host.name, SshCredentials(password=TEST_PASSWORD))

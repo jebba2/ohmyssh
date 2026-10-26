@@ -10,9 +10,9 @@ from pathlib import Path
 import paramiko
 import pytest
 
-from pyommyssh.core.hosts import GlobalSettings, Host
-from pyommyssh.core.keys import KeyType, generateKeyPair
-from pyommyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError, passphraseUnlocks
+from ohmyssh.core.hosts import GlobalSettings, Host
+from ohmyssh.core.keys import KeyType, generateKeyPair
+from ohmyssh.core.ssh import SshAuthError, SshClient, SshCredentials, SshError, passphraseUnlocks
 from tests.echoserver import EchoServer
 from tests.sshserver import (
     EXEC_PREFIX,

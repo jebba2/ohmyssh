@@ -10,8 +10,8 @@ from PySide6.QtCore import QItemSelectionModel, QMimeData, QPoint, QPointF, Qt, 
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.sftp import FileEntry
-from pyommyssh.ui.filePane import ENTRIES_MIME_TYPE, PARENT_ROW_LABEL, FilePane, formatModified, formatSize
+from ohmyssh.core.sftp import FileEntry
+from ohmyssh.ui.filePane import ENTRIES_MIME_TYPE, PARENT_ROW_LABEL, FilePane, formatModified, formatSize
 
 
 def _entries() -> list[FileEntry]:

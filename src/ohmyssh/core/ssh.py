@@ -15,7 +15,7 @@ from pathlib import Path
 
 import paramiko
 
-from pyommyssh.core.hosts import GlobalSettings, Host, effectiveSettings
+from ohmyssh.core.hosts import GlobalSettings, Host, effectiveSettings
 
 logger = logging.getLogger(__name__)
 

@@ -13,16 +13,16 @@ from PySide6.QtCore import QItemSelectionModel, QMimeData, QPoint, QPointF, Qt, 
 from PySide6.QtGui import QDropEvent
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.config import AppSettings
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore
-from pyommyssh.core.keys import KeyType, generateKeyPair, readPublicKey
-from pyommyssh.core.sshconfig import SshConfigEditor
-from pyommyssh.core.tunnel import TunnelState, TunnelStatus
-from pyommyssh.ui.filePane import FilePane
-from pyommyssh.ui.keyGenerateDialog import KeyGenerateRequest
-from pyommyssh.ui.mainWindow import MainWindow
-from pyommyssh.ui.sftpTab import SftpTab
+from ohmyssh.core.config import AppSettings
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import GlobalSettings, Host, HostSource, HostStore
+from ohmyssh.core.keys import KeyType, generateKeyPair, readPublicKey
+from ohmyssh.core.sshconfig import SshConfigEditor
+from ohmyssh.core.tunnel import TunnelState, TunnelStatus
+from ohmyssh.ui.filePane import FilePane
+from ohmyssh.ui.keyGenerateDialog import KeyGenerateRequest
+from ohmyssh.ui.mainWindow import MainWindow
+from ohmyssh.ui.sftpTab import SftpTab
 from tests.echoserver import EchoServer
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor
 
@@ -94,7 +94,7 @@ def test_refresh_shows_host_online(
     assert card is not None
     window.refreshAll()
     qtbot.waitUntil(lambda: card.statusLabel.text() == "Online", timeout=WAIT_MS)
-    assert any("===PYOMMYSSH:OS===" in command for command in sshServer.commands)
+    assert any("===OHMYSSH:OS===" in command for command in sshServer.commands)
 
 
 def test_refresh_failure_shows_error(
@@ -578,7 +578,7 @@ def test_install_key_reports_success_in_the_status_bar(
     qtbot: QtBot, sshServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
     windows: list[MainWindow],
 ) -> None:
-    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n" if "authorized_keys" in command else ""
+    sshServer.execOutput = lambda command: "OHMYSSH:INSTALLED\n" if "authorized_keys" in command else ""
     host = hostFor(sshServer, identityFile=clientKeyFile)
     store.add(host)
     window = _window(qtbot, store, tmp_path)
@@ -589,7 +589,7 @@ def test_install_key_reports_success_in_the_status_bar(
     )
     assert any(PUBLIC_KEY in command for command in sshServer.commands)
 
-    sshServer.execOutput = lambda command: "PYOMMYSSH:PRESENT\n"
+    sshServer.execOutput = lambda command: "OHMYSSH:PRESENT\n"
     window.installKey(host, _publicKeyFile(tmp_path))
     qtbot.waitUntil(
         lambda: window.statusBar().currentMessage() == "id_ed25519.pub is already on box", timeout=WAIT_MS
@@ -599,7 +599,7 @@ def test_install_key_reports_success_in_the_status_bar(
 def test_install_key_prompts_for_a_password(
     qtbot: QtBot, sshServer: TestSshServer, store: HostStore, tmp_path: Path, windows: list[MainWindow]
 ) -> None:
-    sshServer.execOutput = lambda command: "PYOMMYSSH:INSTALLED\n"
+    sshServer.execOutput = lambda command: "OHMYSSH:INSTALLED\n"
     host = hostFor(sshServer)
     store.add(host)
     prompts: list[str] = []

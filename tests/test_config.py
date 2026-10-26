@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from pyommyssh.core.config import AppPaths, AppSettings, loadSettings, saveSettings
+from ohmyssh.core.config import AppPaths, AppSettings, loadSettings, saveSettings, migrateLegacyConfigDir
 
 
 def test_default_settings() -> None:
@@ -45,13 +45,13 @@ def test_app_paths_use_given_root(tmp_path: Path) -> None:
     assert paths.settingsFile == tmp_path / "cfg" / "config.toml"
     assert paths.hostsFile == tmp_path / "cfg" / "hosts.toml"
     assert paths.firstRunMarker == tmp_path / "cfg" / "first_run_done"
-    assert paths.logFile == tmp_path / "working" / "logs" / "pyommyssh.log"
+    assert paths.logFile == tmp_path / "working" / "logs" / "ohmyssh.log"
 
 
 def test_app_paths_default_locations(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("APPDATA", str(tmp_path / "roaming"))
     paths = AppPaths.default()
-    assert paths.configDir == tmp_path / "roaming" / "pyommyssh"
+    assert paths.configDir == tmp_path / "roaming" / "ohmyssh"
     # Running from source, generated files go in <project root>/working.
     assert paths.workingDir.name == "working"
     assert (paths.workingDir.parent / "pyproject.toml").is_file()
@@ -63,4 +63,23 @@ def test_app_paths_fall_back_to_home_config_without_appdata(
     monkeypatch.delenv("APPDATA", raising=False)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
     paths = AppPaths.default()
-    assert paths.configDir == tmp_path / "home" / ".config" / "pyommyssh"
+    assert paths.configDir == tmp_path / "home" / ".config" / "ohmyssh"
+
+
+def test_legacy_config_dir_is_moved_once_and_never_over_an_existing_one(tmp_path: Path) -> None:
+    root = tmp_path / "appdata"
+    legacy = root / "pyommyssh"
+    legacy.mkdir(parents=True)
+    (legacy / "hosts.toml").write_text("[[hosts]]\nname = 'old'\nhostname = 'o'\n")
+    paths = AppPaths(configDir=root / "ohmyssh", workingDir=tmp_path / "working")
+
+    assert migrateLegacyConfigDir(paths) is True
+    assert (paths.configDir / "hosts.toml").read_text().startswith("[[hosts]]")
+    assert not legacy.exists()
+    assert migrateLegacyConfigDir(paths) is False
+
+    legacy.mkdir()
+    (legacy / "hosts.toml").write_text("stale")
+    assert migrateLegacyConfigDir(paths) is False
+    assert (paths.configDir / "hosts.toml").read_text().startswith("[[hosts]]")
+    assert (legacy / "hosts.toml").read_text() == "stale"

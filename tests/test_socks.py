@@ -8,7 +8,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from pyommyssh.core.socks import SocksError, SocksRequest, readSocksRequest, sendSocksReply
+from ohmyssh.core.socks import SocksError, SocksRequest, readSocksRequest, sendSocksReply
 
 
 @pytest.fixture

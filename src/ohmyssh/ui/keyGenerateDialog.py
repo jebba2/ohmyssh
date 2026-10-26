@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.keys import KeyGenerateRequest, KeyType, defaultKeyComment, defaultKeyFileName
+from ohmyssh.core.keys import KeyGenerateRequest, KeyType, defaultKeyComment, defaultKeyFileName
 
 KEY_TYPE_LABELS = {
     KeyType.ED25519: "Ed25519 (recommended)",

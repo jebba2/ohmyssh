@@ -7,7 +7,7 @@ from PySide6.QtGui import QGuiApplication, QWheelEvent
 from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.ui.terminalWidget import TerminalWidget
+from ohmyssh.ui.terminalWidget import TerminalWidget
 
 
 def _collect(widget: TerminalWidget) -> list[bytes]:

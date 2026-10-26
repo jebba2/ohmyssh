@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import GlobalSettings, Host, parseSshConfig
-from pyommyssh.core.sshconfig import MAX_BACKUPS, SshConfigEditor, SshConfigError
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import GlobalSettings, Host, parseSshConfig
+from ohmyssh.core.sshconfig import MAX_BACKUPS, SshConfigEditor, SshConfigError
 
 JEB_LAYOUT = (
     "Host *\n"

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import (
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import (
     EffectiveSettings,
     GlobalSettings,
     Host,

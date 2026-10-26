@@ -11,11 +11,11 @@ from pathlib import Path
 
 import pytest
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.ssh import SshCredentials
-from pyommyssh.core.tunnel import Tunnel, TunnelManager, TunnelState, TunnelStatus
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.ssh import SshCredentials
+from ohmyssh.core.tunnel import Tunnel, TunnelManager, TunnelState, TunnelStatus
 from tests.echoserver import EchoServer
 from tests.sshserver import TEST_PASSWORD, TestSshServer, hostFor
 

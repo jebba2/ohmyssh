@@ -14,7 +14,7 @@ from pathlib import Path
 
 import tomli_w
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.forwards import ForwardKind, PortForward
 
 # Include directives deeper than this are ignored, matching OmnySSH.
 MAX_INCLUDE_DEPTH = 3

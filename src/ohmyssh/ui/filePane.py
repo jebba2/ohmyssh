@@ -32,11 +32,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.sftp import FileEntry
+from ohmyssh.core.sftp import FileEntry
 
 PARENT_ROW_LABEL = ".."
 COLUMNS = ("Name", "Size", "Modified")
-ENTRIES_MIME_TYPE = "application/x-pyommyssh-entries"
+ENTRIES_MIME_TYPE = "application/x-ohmyssh-entries"
 _SIZE_UNITS = ("B", "KB", "MB", "GB", "TB")
 
 

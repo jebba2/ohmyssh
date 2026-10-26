@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.metrics import HostMetrics
-from pyommyssh.core.tunnel import TunnelState, TunnelStatus
-from pyommyssh.ui.dashboard import CARD_MIN_WIDTH, DashboardView, columnsFor
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.metrics import HostMetrics
+from ohmyssh.core.tunnel import TunnelState, TunnelStatus
+from ohmyssh.ui.dashboard import CARD_MIN_WIDTH, DashboardView, columnsFor
 
 
 def _hosts() -> list[Host]:

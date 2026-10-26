@@ -19,9 +19,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host, HostSource
-from pyommyssh.ui.globalSettingsDialog import (
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import Host, HostSource
+from ohmyssh.ui.globalSettingsDialog import (
     MAX_COUNT,
     MAX_SECONDS,
     makeOptionalSpin,

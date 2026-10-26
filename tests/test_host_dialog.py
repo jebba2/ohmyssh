@@ -7,9 +7,9 @@ from pathlib import Path
 from PySide6.QtWidgets import QDialog
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
-from pyommyssh.core.hosts import Host, HostSource
-from pyommyssh.ui.hostDialog import HostDialog
+from ohmyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.hosts import Host, HostSource
+from ohmyssh.ui.hostDialog import HostDialog
 
 
 def test_new_host_from_fields(qtbot: QtBot, tmp_path: Path) -> None:

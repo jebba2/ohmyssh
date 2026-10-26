@@ -17,10 +17,10 @@ from pathlib import Path
 
 from PySide6.QtCore import QObject, QThread, Signal
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.sftp import ProgressCallback, SftpError, SftpSession, TransferCancelled, TransferResult
-from pyommyssh.core.ssh import SshAuthError, SshError
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.sftp import ProgressCallback, SftpError, SftpSession, TransferCancelled, TransferResult
+from ohmyssh.core.ssh import SshAuthError, SshError
 
 TransferRun = Callable[[SftpSession, ProgressCallback], TransferResult]
 

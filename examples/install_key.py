@@ -18,11 +18,11 @@ import getpass
 import sys
 from pathlib import Path
 
-from pyommyssh.core.config import AppPaths
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
-from pyommyssh.core.keys import KeyInstallError, installPublicKey, readPublicKey
-from pyommyssh.core.ssh import SshAuthError, SshCredentials, SshError
+from ohmyssh.core.config import AppPaths
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import HostStore, loadSshConfig, mergeHosts
+from ohmyssh.core.keys import KeyInstallError, installPublicKey, readPublicKey
+from ohmyssh.core.ssh import SshAuthError, SshCredentials, SshError
 
 DEFAULT_PUBLIC_KEY = Path.home() / ".ssh" / "id_ed25519.pub"
 

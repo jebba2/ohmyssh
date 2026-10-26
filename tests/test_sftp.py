@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from pyommyssh.core.sftp import (
+from ohmyssh.core.sftp import (
     FileEntry,
     SftpError,
     SftpSession,
@@ -18,7 +18,7 @@ from pyommyssh.core.sftp import (
     listLocalDir,
     localRoots,
 )
-from pyommyssh.core.ssh import SshClient, SshCredentials
+from ohmyssh.core.ssh import SshClient, SshCredentials
 from tests.sshserver import TEST_PASSWORD, TestSshServer, hostFor
 
 

@@ -6,7 +6,7 @@ import re
 
 import pytest
 
-from pyommyssh.core.forwards import ForwardKind, PortForward
+from ohmyssh.core.forwards import ForwardKind, PortForward
 
 
 def test_parse_local_forward_without_bind_address() -> None:

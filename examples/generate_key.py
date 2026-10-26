@@ -18,7 +18,7 @@ import getpass
 import sys
 from pathlib import Path
 
-from pyommyssh.core.keys import KeyType, defaultKeyComment, generateKeyPair
+from ohmyssh.core.keys import KeyType, defaultKeyComment, generateKeyPair
 
 
 def main() -> int:

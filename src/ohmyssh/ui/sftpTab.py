@@ -22,12 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.connections import ConnectionPool
-from pyommyssh.core.hosts import Host
-from pyommyssh.core.sftp import FileEntry, TransferProgress, TransferResult, localRoots
-from pyommyssh.ui.filePane import FilePane, acceptAsCopy, formatSize
-from pyommyssh.ui.sftpBridge import SftpBridge
-from pyommyssh.ui.workers import LocalListWorker
+from ohmyssh.core.connections import ConnectionPool
+from ohmyssh.core.hosts import Host
+from ohmyssh.core.sftp import FileEntry, TransferProgress, TransferResult, localRoots
+from ohmyssh.ui.filePane import FilePane, acceptAsCopy, formatSize
+from ohmyssh.ui.sftpBridge import SftpBridge
+from ohmyssh.ui.workers import LocalListWorker
 
 MAX_LISTED_NAMES = 10
 

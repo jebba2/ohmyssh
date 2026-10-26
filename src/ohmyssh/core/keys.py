@@ -22,10 +22,10 @@ from pathlib import Path
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
 
-from pyommyssh.core.ssh import SshClient
+from ohmyssh.core.ssh import SshClient
 
-INSTALLED_MARKER = "PYOMMYSSH:INSTALLED"
-PRESENT_MARKER = "PYOMMYSSH:PRESENT"
+INSTALLED_MARKER = "OHMYSSH:INSTALLED"
+PRESENT_MARKER = "OHMYSSH:PRESENT"
 RSA_BITS = 4096
 PRIVATE_KEY_MODE = 0o600
 PUBLIC_KEY_MODE = 0o644

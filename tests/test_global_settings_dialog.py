@@ -7,8 +7,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QDialog
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.hosts import GlobalSettings
-from pyommyssh.ui.globalSettingsDialog import GlobalSettingsDialog
+from ohmyssh.core.hosts import GlobalSettings
+from ohmyssh.ui.globalSettingsDialog import GlobalSettingsDialog
 
 
 def test_empty_settings_show_as_not_set(qtbot: QtBot) -> None:

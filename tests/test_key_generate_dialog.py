@@ -7,8 +7,8 @@ from pathlib import Path
 from PySide6.QtWidgets import QDialog
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.keys import KeyType
-from pyommyssh.ui.keyGenerateDialog import KeyGenerateDialog, KeyGenerateRequest
+from ohmyssh.core.keys import KeyType
+from ohmyssh.ui.keyGenerateDialog import KeyGenerateDialog, KeyGenerateRequest
 
 
 def test_defaults_point_at_an_ed25519_key_in_the_ssh_dir(qtbot: QtBot, tmp_path: Path) -> None:

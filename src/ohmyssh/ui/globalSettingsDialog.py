@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from pyommyssh.core.hosts import GlobalSettings
+from ohmyssh.core.hosts import GlobalSettings
 
 NOT_SET = -1
 MAX_SECONDS = 86400

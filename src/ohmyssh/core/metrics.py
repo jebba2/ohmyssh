@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
-MARKER_PREFIX = "===PYOMMYSSH:"
+MARKER_PREFIX = "===OHMYSSH:"
 MARKER_SUFFIX = "==="
 MAX_PROCESSES = 3
 

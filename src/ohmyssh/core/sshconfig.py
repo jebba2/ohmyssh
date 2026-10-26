@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from pyommyssh.core.hosts import (
+from ohmyssh.core.hosts import (
     GlobalSettings,
     Host,
     expandHome,

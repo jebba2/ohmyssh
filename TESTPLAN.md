@@ -1,4 +1,4 @@
-# pyommyssh test plan
+# ohmyssh test plan
 
 Keep this file current with the features and commands that exist. Tick the boxes as you verify each item on a real machine.
 
@@ -9,13 +9,14 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 ## Running from source
 
-- [x] `uv run pyommyssh` opens the main window with a Dashboard tab
-- [ ] `uv run python -m pyommyssh` does the same
-- [ ] The window title bar and the taskbar show the padlock-over-"ssh" logo on a teal-to-blue tile, including when run from source with `uv run pyommyssh` (not the Python icon)
+- [x] `uv run ohmyssh` opens the main window with a Dashboard tab
+- [ ] `uv run python -m ohmyssh` does the same
+- [ ] The window title bar and the taskbar show the padlock-over-"ssh" logo on a teal-to-blue tile, including when run from source with `uv run ohmyssh` (not the Python icon)
 - [ ] Pinning the running app to the taskbar keeps the logo on the pinned button
-- [ ] The packaged `pyommyssh.exe` shows the same icon in Explorer and the taskbar
+- [ ] The packaged `ohmyssh.exe` shows the same icon in Explorer and the taskbar
 - [x] `uv run python scripts/build_icon.py` regenerates `app.ico` with seven sizes and prints what it wrote
-- [x] `working/logs/pyommyssh.log` is created and records the host counts loaded
+- [x] `working/logs/ohmyssh.log` is created and records the host counts loaded
+- [ ] With `%APPDATA%\pyommyssh\` present from an older version and no `%APPDATA%\ohmyssh\`, the first start moves the folder, keeps every host, and logs the move; with both present nothing is moved
 
 ## Hosts
 
@@ -26,7 +27,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] `Ctrl+N` opens Add host with "Save in" set to `~/.ssh/config`; leaving Name blank shows "Name is required"
 - [ ] Reusing an existing name shows "A host named '...' already exists"
 - [ ] Saving a new host appends a `Host` block at the end of `~/.ssh/config` (tags as a `# tags:` comment), the card appears, and `ssh <name>` in a terminal works
-- [ ] Choosing "App only (hosts.toml)" instead writes `%APPDATA%\pyommyssh\hosts.toml` and leaves `~/.ssh/config` alone
+- [ ] Choosing "App only (hosts.toml)" instead writes `%APPDATA%\ohmyssh\hosts.toml` and leaves `~/.ssh/config` alone
 - [ ] The pencil button beside the name opens Edit host prefilled with "Save in" disabled; saving changes the card
 - [ ] Editing an SSH config host changes only its own block's HostName, User, Port, IdentityFile, ProxyJump, forwards, and tags comment; every other line in the file, including comments and `Host *`, is unchanged (`diff` against the backup)
 - [ ] Before each save a copy lands in `working/backups/config-<timestamp>.bak`; only the last ten are kept
@@ -104,7 +105,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 ## First launch
 
-- [ ] With `%APPDATA%\pyommyssh\first_run_done` deleted and no private key in `~/.ssh` (move them aside), starting the app creates `~/.ssh` if missing and shows "Welcome to pyommyssh" explaining that no key was found
+- [ ] With `%APPDATA%\ohmyssh\first_run_done` deleted and no private key in `~/.ssh` (move them aside), starting the app creates `~/.ssh` if missing and shows "Welcome to ohmyssh" explaining that no key was found
 - [ ] Yes opens Generate SSH key with Save as `~/.ssh/id_ed25519`; OK writes the pair and the status bar reports it
 - [ ] No, or cancelling the key dialog, leaves `~/.ssh` without a key, and the next start does not ask again
 - [ ] With a key already present, starting the app shows no welcome; `first_run_done` is still written
@@ -199,10 +200,10 @@ Keep this file current with the features and commands that exist. Tick the boxes
 ## Standalone build
 
 - [x] `uv run python scripts/build_windows.py` finishes and prints the output path and size
-- [ ] `dist/pyommyssh/pyommyssh.exe` starts on a machine without Python
+- [ ] `dist/ohmyssh/ohmyssh.exe` starts on a machine without Python
 - [ ] The packaged app reads `~/.ssh/config`, shows cards, and opens a terminal
 - [x] Logs appear in `working/logs/` beside the executable
-- [ ] `--onefile` produces `dist/pyommyssh.exe` that starts
+- [ ] `--onefile` produces `dist/ohmyssh.exe` that starts
 - [ ] A failed build prints the last log lines and the log path
 
 ## Examples

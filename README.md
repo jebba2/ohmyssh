@@ -1,6 +1,6 @@
-<p align="center"><img src="src/pyommyssh/ui/icons/app.svg" width="128" alt="pyommyssh logo: a padlock over the letters ssh"></p>
+<p align="center"><img src="src/ohmyssh/ui/icons/app.svg" width="128" alt="ohmyssh logo: a padlock over the letters ssh"></p>
 
-# pyommyssh
+# ohmyssh
 
 A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an SSH client with a live server dashboard, built with PySide6 (Qt), paramiko, and pyte. It runs from source on Windows, macOS, and Linux, and can be packaged as a standalone Windows executable with PyInstaller.
 
@@ -16,7 +16,7 @@ A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an 
 - **Select and copy.** Drag to select, double-click a word, triple-click a line. `Ctrl+Shift+C` or `Ctrl+Insert` copies, and the right-click menu has Copy and Paste. A selection stays on its lines while you scroll back and while new output arrives, because it is anchored to the scrollback buffer, not the screen. `Ctrl+C` is still the interrupt.
 - **Search.** `Ctrl+K` filters hosts and open terminal tabs by name, hostname, or tag. Enter opens or switches.
 - **Port forwarding.** Each host can carry local (`ssh -L`), remote (`ssh -R`), and dynamic SOCKS (`ssh -D`) forwards, in OpenSSH's `[bind_address:]port:host:hostport` notation. `LocalForward`, `RemoteForward`, and `DynamicForward` lines in `~/.ssh/config` are picked up, and app-managed hosts edit theirs in the host dialog. The card lists a host's forwards with a Start/Stop tunnel button and a status line. One tunnel per host carries every forward; it binds its local ports up front, reconnects with a backoff when the connection drops, and keeps the ports while it does. SOCKS4, SOCKS4a, and SOCKS5 without authentication are accepted on dynamic forwards.
-- **SFTP file browser.** The folder button beside a host's name opens a tab with your local disk on the left and the host on the right. Each pane shows name, size, and modified time, with a `..` row, an Up button, a path bar you can type into, and a drive switch on Windows. Both sides list in the background so a slow drive or a slow host never freezes the window. Select items on one side and press Upload or Download to copy them, folders included, into the folder shown on the other side. A strip at the bottom shows the current file, bytes, and file count, with Cancel stopping the running transfer and dropping the queued ones. A transfer that would replace existing items asks once per batch. Existing folders are merged into, symlinks and special files are skipped, and a file that fails is skipped while the rest continues. Browsing keeps working during a transfer because the tab uses two SFTP channels on the one connection. Under the remote pane, New folder, Rename, and Delete act on the host; Delete asks once per batch and removes files and empty folders only. Refresh lists both sides again. Rows can also be dragged: dropping local rows on the remote pane uploads them, dropping remote rows on the local pane downloads them, and dropping onto a folder row puts them inside that folder. Files dragged in from Explorer or Finder, the desktop included, upload to the remote folder on show when dropped anywhere on the SFTP tab, or into a folder row when dropped on one; drive roots, missing paths, and two items with the same name are refused and named above the panes. A drop is always taken as a copy, so the original on your disk is never moved. On Windows, drops from Explorer cannot reach an app that is running as administrator; run pyommyssh as a normal user.
+- **SFTP file browser.** The folder button beside a host's name opens a tab with your local disk on the left and the host on the right. Each pane shows name, size, and modified time, with a `..` row, an Up button, a path bar you can type into, and a drive switch on Windows. Both sides list in the background so a slow drive or a slow host never freezes the window. Select items on one side and press Upload or Download to copy them, folders included, into the folder shown on the other side. A strip at the bottom shows the current file, bytes, and file count, with Cancel stopping the running transfer and dropping the queued ones. A transfer that would replace existing items asks once per batch. Existing folders are merged into, symlinks and special files are skipped, and a file that fails is skipped while the rest continues. Browsing keeps working during a transfer because the tab uses two SFTP channels on the one connection. Under the remote pane, New folder, Rename, and Delete act on the host; Delete asks once per batch and removes files and empty folders only. Refresh lists both sides again. Rows can also be dragged: dropping local rows on the remote pane uploads them, dropping remote rows on the local pane downloads them, and dropping onto a folder row puts them inside that folder. Files dragged in from Explorer or Finder, the desktop included, upload to the remote folder on show when dropped anywhere on the SFTP tab, or into a folder row when dropped on one; drive roots, missing paths, and two items with the same name are refused and named above the panes. A drop is always taken as a copy, so the original on your disk is never moved. On Windows, drops from Explorer cannot reach an app that is running as administrator; run ohmyssh as a normal user.
 - **Generate a key pair.** `Ctrl+G` or the Generate key button asks for the key type (Ed25519 by default, or RSA 4096), a comment, where to save the private key (defaulting to `~/.ssh/id_ed25519`), and an optional passphrase. The files are written in OpenSSH format, the private key with mode 600 and the public key beside it as `.pub`. Existing files are never overwritten. When a host asks for a secret, the one you type is tried both as the login password and as the key's passphrase, so a passphrase-protected key works with the same single prompt.
 - **Install a public key.** The key button beside a host's name picks a `.pub` file from `~/.ssh` and appends it to the host's `~/.ssh/authorized_keys` over the existing connection, the way `ssh-copy-id` does. The key is added only if it is not already there, the directory is set to 700 and the file to 600, and nothing else on the server is touched. The outcome shows in the status bar. The private key never leaves your machine.
 - **One connection per host.** The dashboard poll, every terminal tab, the tunnel, and key installs share a single SSH connection to each host.
@@ -41,18 +41,18 @@ Python 3.13 is used automatically (see `.python-version`).
 ## Running
 
 ```powershell
-uv run pyommyssh
+uv run ohmyssh
 ```
 
 or
 
 ```powershell
-uv run python -m pyommyssh
+uv run python -m ohmyssh
 ```
 
 **First launch.** The app makes sure `~/.ssh` exists, and if it holds no private key it offers to generate one, opening the same Generate key dialog with `~/.ssh/id_ed25519` as the default. Whatever you answer, it asks only once; a `first_run_done` marker in the config directory records that, and deleting it brings the offer back. The key button on a host's card installs the new key on that host.
 
-On Windows the app registers its own taskbar identity at startup, so the taskbar shows the pyommyssh logo rather than Python's icon even when run from source.
+On Windows the app registers its own taskbar identity at startup, so the taskbar shows the ohmyssh logo rather than Python's icon even when run from source.
 
 ### Keyboard shortcuts
 
@@ -70,7 +70,7 @@ On Windows the app registers its own taskbar identity at startup, so the taskbar
 
 ## Configuration
 
-Files live in the per-user config directory: `%APPDATA%\pyommyssh\` on Windows, `~/.config/pyommyssh/` elsewhere.
+Files live in the per-user config directory: `%APPDATA%\ohmyssh\` on Windows, `~/.config/ohmyssh/` elsewhere. The app was called pyommyssh until October 2026; a folder left under that name is moved to the new one on the next start, as long as the new folder does not exist yet.
 
 ### `config.toml`
 
@@ -139,7 +139,7 @@ The three forward lists are optional. A local forward listens on this machine an
 
 ### Logs
 
-Logs go to `working/logs/pyommyssh.log` under the project root when running from source, or beside the executable when packaged.
+Logs go to `working/logs/ohmyssh.log` under the project root when running from source, or beside the executable when packaged.
 
 ## Building a standalone Windows executable
 
@@ -147,7 +147,7 @@ Logs go to `working/logs/pyommyssh.log` under the project root when running from
 uv run python scripts/build_windows.py
 ```
 
-That produces `dist/pyommyssh/pyommyssh.exe` with its support files beside it, using `src/pyommyssh/ui/icons/app.ico` as the executable's icon. After changing the logo in `app.svg`, regenerate the `.ico` with `uv run python scripts/build_icon.py` and commit it; `--png working/preview.png` also writes a preview to look at. Add `--onefile` for a single `dist/pyommyssh.exe`, and `--clean` to discard PyInstaller's cache. The full build log is in `working/build/pyinstaller.log`.
+That produces `dist/ohmyssh/ohmyssh.exe` with its support files beside it, using `src/ohmyssh/ui/icons/app.ico` as the executable's icon. After changing the logo in `app.svg`, regenerate the `.ico` with `uv run python scripts/build_icon.py` and commit it; `--png working/preview.png` also writes a preview to look at. Add `--onefile` for a single `dist/ohmyssh.exe`, and `--clean` to discard PyInstaller's cache. The full build log is in `working/build/pyinstaller.log`.
 
 One-directory builds start faster and are less likely to be quarantined by antivirus software than one-file builds, which unpack to a temp directory on every launch.
 
@@ -178,8 +178,8 @@ See [TESTPLAN.md](TESTPLAN.md) for the manual checklist.
 ## Project layout
 
 ```
-src/pyommyssh/core/   hosts, sshconfig, forwards, metrics, ssh, connections, tunnel, socks, keys, sftp, terminal, config (no Qt)
-src/pyommyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftpTab, sftpBridge, mainWindow, workers
+src/ohmyssh/core/   hosts, sshconfig, forwards, metrics, ssh, connections, tunnel, socks, keys, sftp, terminal, config (no Qt)
+src/ohmyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftpTab, sftpBridge, mainWindow, workers
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples
 scripts/              build_windows.py

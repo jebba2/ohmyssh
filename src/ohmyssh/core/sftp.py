@@ -23,7 +23,7 @@ from pathlib import Path
 
 import paramiko
 
-from pyommyssh.core.ssh import SshClient, SshError
+from ohmyssh.core.ssh import SshClient, SshError
 
 CHUNK_BYTES = 256 * 1024
 

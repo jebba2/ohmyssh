@@ -6,8 +6,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog
 from pytestqt.qtbot import QtBot
 
-from pyommyssh.core.hosts import Host
-from pyommyssh.ui.searchDialog import SearchDialog, SearchEntry
+from ohmyssh.core.hosts import Host
+from ohmyssh.ui.searchDialog import SearchDialog, SearchEntry
 
 WEB = Host(name="web", hostname="web.example.com", tags=["prod"])
 DB = Host(name="db", hostname="10.0.0.9", tags=["data"])
