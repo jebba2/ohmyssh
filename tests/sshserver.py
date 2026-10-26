@@ -266,6 +266,10 @@ class TestSshServer:
     def start(self) -> None:
         self._thread.start()
 
+    def liveSessions(self) -> int:
+        """How many client sessions are still open, so tests can see that a client really closed."""
+        return sum(1 for transport in self._transports if transport.is_active())
+
     def dropConnections(self) -> None:
         """Close every live session while staying up, so clients can reconnect."""
         for transport in self._transports:

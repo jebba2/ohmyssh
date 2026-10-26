@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import paramiko
@@ -84,6 +85,38 @@ def test_pool_reconnects_after_drop(sshServer: TestSshServer, tmp_path: Path) ->
     second = pool.connection(host)
     assert second is not first
     assert second.isConnected()
+    pool.closeAll()
+
+
+def _waitFor(condition: Callable[[], bool], timeout: float = 5.0) -> bool:
+    """Poll until ``condition`` holds or ``timeout`` seconds pass; connection drops are noticed asynchronously."""
+    deadline = time.monotonic() + timeout
+    while not condition():
+        if time.monotonic() > deadline:
+            return False
+        time.sleep(0.05)
+    return True
+
+
+def test_pool_closes_a_dropped_client_before_replacing_it(
+    sshServer: TestSshServer, jumpServer: TestSshServer, tmp_path: Path
+) -> None:
+    """A client whose target hop died still holds its bastion session (and agent socket) until closed."""
+    bastion = _host(jumpServer, name="bastion")
+    target = _host(sshServer, name="target", proxyJump="bastion")
+    pool = ConnectionPool(lambda: [bastion, target], knownHostsPath=tmp_path / "known_hosts")
+    creds = SshCredentials(password=TEST_PASSWORD)
+    pool.setCredentials("bastion", creds)
+    pool.setCredentials("target", creds)
+    first = pool.connection(target)
+    assert jumpServer.liveSessions() == 1
+
+    sshServer.dropConnections()
+    assert _waitFor(lambda: not first.isConnected())
+    second = pool.connection(target)
+    assert second is not first
+    assert second.isConnected()
+    assert _waitFor(lambda: jumpServer.liveSessions() == 1), "the replaced client's bastion session was left open"
     pool.closeAll()
 
 

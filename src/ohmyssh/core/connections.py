@@ -77,8 +77,11 @@ class ConnectionPool:
         """Return a connected client for ``host``, connecting if needed."""
         with self._lockFor(host.name):
             existing = self._clients.get(host.name)
-            if existing is not None and existing.isConnected():
-                return existing
+            if existing is not None:
+                if existing.isConnected():
+                    return existing
+                # A dropped connection still holds its jump hops and agent socket until closed.
+                existing.close()
             try:
                 jumps = resolveJumpChain(host, self._hostsProvider())
             except ValueError as error:
