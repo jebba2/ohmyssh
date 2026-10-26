@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtWidgets import QApplication
 from pytestqt.qtbot import QtBot
 
 from ohmyssh.core.forwards import ForwardKind, PortForward
@@ -135,3 +136,33 @@ def test_tunnel_signals_are_forwarded(qtbot: QtBot) -> None:
     with qtbot.waitSignal(view.stopTunnelRequested) as stopped:
         card.stopTunnelRequested.emit(card.host)
     assert stopped.args == [card.host]
+
+
+def test_cards_in_a_row_share_one_width_whatever_their_text(qtbot: QtBot) -> None:
+    """A long address or forward must not widen its column at the others' expense."""
+    hosts = _hosts()
+    hosts[0].hostname = "a-very-long-host-name-that-would-widen-its-column.example.internal.net"
+    hosts[0].forwards = [PortForward.parse(ForwardKind.LOCAL, "0.0.0.0:18080:an.equally.long.destination.example.net:8080")]
+    view = DashboardView()
+    qtbot.addWidget(view)
+    view.resize(CARD_MIN_WIDTH * 3 + 40, 600)
+    view.show()
+    view.setHosts(hosts)
+    QApplication.processEvents()
+    assert view.columns() == 3
+    widths = [card.width() for card in view.cards()]
+    assert max(widths) - min(widths) <= 1, widths  # the viewport width rarely divides evenly
+
+
+def test_card_content_stays_at_the_top_when_a_neighbour_is_taller(qtbot: QtBot) -> None:
+    """Rows share a height; the shorter card keeps its rows packed instead of spreading them out."""
+    view = DashboardView()
+    qtbot.addWidget(view)
+    view.resize(CARD_MIN_WIDTH * 3 + 40, 600)
+    view.show()
+    view.setHosts(_forwardingHosts())
+    QApplication.processEvents()
+    tall, short = view.cards()[0], view.cards()[1]
+    assert tall.height() == short.height()
+    assert tall.cpuBar.y() == short.cpuBar.y()
+    assert tall.processesLabel.y() == short.processesLabel.y()

@@ -158,6 +158,10 @@ class DashboardView(QScrollArea):
         for index in reversed(range(self._grid.count())):
             item = self._grid.takeAt(index)
             del item
+        # Every column gets an equal share of the width; columns left over from
+        # a wider layout get none so they collapse.
+        for column in range(max(self._columns, self._grid.columnCount())):
+            self._grid.setColumnStretch(column, 1 if column < self._columns else 0)
         row = 0
         column = 0
         remainingCards = list(self._cards)

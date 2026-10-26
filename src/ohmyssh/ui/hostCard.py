@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QMenu,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -77,6 +78,8 @@ class HostCard(QFrame):
         self.setObjectName("hostCard")
         self.setFrameShape(QFrame.Shape.StyledPanel)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        # The grid decides the width; a long address or forward must not widen this card's column.
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
 
         self.nameLabel = QLabel(host.name)
         self.nameLabel.setObjectName("hostName")
@@ -143,6 +146,8 @@ class HostCard(QFrame):
         ):
             layout.addWidget(widget)
         layout.addLayout(tunnelRow)
+        # Spare height from a taller neighbour stays below the content, not between rows.
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._resetBars()
         for widget in (self.forwardsLabel, self.tunnelStatusLabel, self.tunnelButton):
             widget.setVisible(host.hasForwards())
