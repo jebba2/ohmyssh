@@ -96,15 +96,21 @@ class _Handler(paramiko.ServerInterface):
     def check_channel_exec_request(self, channel: paramiko.Channel, command: bytes) -> bool:
         text = command.decode()
         self._server.commands.append(text)
+        if self._server.execGate is not None:
+            # The exec request stays unanswered until the test lifts the gate.
+            self._server.execGate.wait()
         execOutput = self._server.execOutput
         output = execOutput(text) if execOutput is not None else f"{EXEC_PREFIX}{text}\n"
 
         def reply() -> None:
             # Send EOF rather than closing: a close can overtake paramiko's own
             # exec acknowledgement and the client then sees "Channel closed".
-            channel.sendall(output.encode())
-            channel.send_exit_status(0)
-            channel.shutdown_write()
+            try:
+                channel.sendall(output.encode())
+                channel.send_exit_status(0)
+                channel.shutdown_write()
+            except (OSError, EOFError, paramiko.SSHException):
+                pass  # the client hung up while the command was pending
 
         threading.Thread(target=reply, daemon=True).start()
         return True
@@ -251,6 +257,8 @@ class TestSshServer:
         self.globalRequests: list[str] = []
         # When set, exec requests answer with this instead of the canned echo.
         self.execOutput: Callable[[str], str] | None = None
+        # When set, exec requests are not answered until the event is set.
+        self.execGate: threading.Event | None = None
         self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._listener.bind(("127.0.0.1", 0))

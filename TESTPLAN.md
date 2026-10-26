@@ -16,6 +16,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] The packaged `ohmyssh.exe` shows the same icon in Explorer and the taskbar
 - [x] `uv run python scripts/build_icon.py` regenerates `app.ico` with seven sizes and prints what it wrote
 - [x] `working/logs/ohmyssh.log` is created and records the host counts loaded
+- [x] Quitting while an unreachable host is still being probed closes the window within about a second instead of waiting out the connect timeout
 - [ ] With `%APPDATA%\pyommyssh\` present from an older version and no `%APPDATA%\ohmyssh\`, the first start moves the folder, keeps every host, and logs the move; with both present nothing is moved
 
 ## Hosts
@@ -65,6 +66,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] `F5` refreshes immediately
 - [ ] Group by tag shows a header per tag, hosts without tags under "Untagged", and a host appears once per tag
 - [ ] Narrowing the window reduces the number of card columns
+- [x] Cards in a row share one width however long their address or forwards are, and a shorter card keeps its rows at the top beside a taller one
 
 ## Passwords
 

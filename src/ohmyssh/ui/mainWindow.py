@@ -626,8 +626,9 @@ class MainWindow(QMainWindow):
             tab.shutdown()
         for sftpTab in self.sftpTabs():
             sftpTab.shutdown()
-        self.tunnels.shutdown()
+        # Closing the pool first cuts short any dial a worker or tunnel is blocked in.
         self._pool.closeAll()
+        self.tunnels.shutdown()
         self._threadPool.waitForDone(WORKER_SHUTDOWN_TIMEOUT_MS)
 
     def closeEvent(self, event: QCloseEvent) -> None:

@@ -9,3 +9,6 @@ __pycache__/
 working/
 build/
 dist/
+
+# macOS Finder metadata
+.DS_Store

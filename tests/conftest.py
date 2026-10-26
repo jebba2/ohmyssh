@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import socket
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -12,6 +13,10 @@ import pytest
 # Widget tests must not need a display; this has to be set before Qt loads.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+# TEST-NET-1 (RFC 5737) is never routed, so a connect to it waits for its timeout.
+BLACKHOLE_ADDRESS = "192.0.2.1"
+
+from ohmyssh.core.hosts import Host
 from tests.echoserver import EchoServer
 from tests.sshserver import TestSshServer
 
@@ -72,3 +77,23 @@ def echoServer() -> Iterator[EchoServer]:
     server.start()
     yield server
     server.stop()
+
+
+@pytest.fixture
+def blackholeHost() -> Host:
+    """A host on TEST-NET-1, which never answers, so a connect to it hangs until its timeout.
+
+    Skips when the network in use refuses the address at once instead, since
+    then nothing can be hanging for a test to interrupt.
+    """
+    probe = socket.socket()
+    probe.settimeout(0.5)
+    try:
+        probe.connect((BLACKHOLE_ADDRESS, 22))
+    except TimeoutError:
+        return Host(name="away", hostname=BLACKHOLE_ADDRESS, user="nobody")
+    except OSError as error:
+        pytest.skip(f"this network answers {BLACKHOLE_ADDRESS} at once ({error}); a connect to it cannot hang")
+    finally:
+        probe.close()
+    pytest.skip(f"something answered on {BLACKHOLE_ADDRESS}; a connect to it cannot hang")

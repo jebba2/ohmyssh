@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -251,3 +252,30 @@ def test_pool_applies_global_settings_to_new_connections(
         assert ("publickey", TEST_USER) in sshServer.authAttempts
     finally:
         pool.closeAll()
+
+
+def test_close_all_aborts_a_connection_being_opened_and_refuses_new_ones(blackholeHost: Host, tmp_path: Path) -> None:
+    """Shutdown must reach a client that is still dialing, and a later caller must not start dialing."""
+    pool = ConnectionPool(lambda: [blackholeHost], knownHostsPath=tmp_path / "known_hosts")
+    errors: list[SshError] = []
+
+    def connect() -> None:
+        try:
+            pool.connection(blackholeHost)
+        except SshError as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=connect)
+    thread.start()
+    time.sleep(0.3)
+    started = time.monotonic()
+    pool.closeAll()
+    thread.join(5.0)
+    assert not thread.is_alive(), "connection() kept dialing after closeAll()"
+    assert time.monotonic() - started < 2.0
+    assert len(errors) == 1
+
+    started = time.monotonic()
+    with pytest.raises(SshError, match="closed"):
+        pool.connection(blackholeHost)
+    assert time.monotonic() - started < 1.0

@@ -28,6 +28,9 @@ class ConnectionPool:
         self._knownHostsPath = knownHostsPath
         self._globalSettingsProvider = globalSettingsProvider or GlobalSettings
         self._clients: dict[str, SshClient] = {}
+        # Clients whose connect() is still running, so closeAll can cut them short.
+        self._connecting: dict[str, SshClient] = {}
+        self._closed = False
         self._credentials: dict[str, SshCredentials] = {}
         self._passphrasesByKey: dict[Path, str] = {}
         self._hostLocks: dict[str, threading.Lock] = {}
@@ -69,6 +72,9 @@ class ConnectionPool:
         with self._lock:
             self._passphrasesByKey[keyPath] = credentials.passphrase
 
+    def _closedMessage(self, host: Host) -> str:
+        return f"Not connecting to {host.name}: the connection pool is closed"
+
     def _lockFor(self, name: str) -> threading.Lock:
         with self._lock:
             return self._hostLocks.setdefault(name, threading.Lock())
@@ -94,7 +100,19 @@ class ConnectionPool:
                 knownHostsPath=self._knownHostsPath,
                 globalSettings=self._globalSettingsProvider(),
             )
-            client.connect()
+            with self._lock:
+                if self._closed:
+                    raise SshError(self._closedMessage(host))
+                self._connecting[host.name] = client
+            try:
+                client.connect()
+            finally:
+                with self._lock:
+                    self._connecting.pop(host.name, None)
+                    closed = self._closed
+            if closed:
+                client.close()
+                raise SshError(self._closedMessage(host))
             self._clients[host.name] = client
             self._rememberPassphrase(host, credentials)
             return client
@@ -107,9 +125,14 @@ class ConnectionPool:
                 client.close()
 
     def closeAll(self) -> None:
-        """Close every connection; used at shutdown."""
+        """Close every connection, including ones still being opened; used at shutdown.
+
+        The pool refuses to open connections afterwards, so a caller that was
+        waiting its turn behind an aborted connect does not start dialing.
+        """
         with self._lock:
-            clients = list(self._clients.values())
+            self._closed = True
+            clients = list(self._clients.values()) + list(self._connecting.values())
             self._clients = {}
         for client in clients:
             client.close()

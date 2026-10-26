@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import socket
+import time
 import tomllib
 from collections.abc import Iterator
 from pathlib import Path
@@ -1138,3 +1139,18 @@ def test_shutdown_stops_tunnels(
     assert not window.tunnels.isRunning("box")
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", port))
+
+
+def test_shutdown_does_not_wait_for_a_host_that_never_answers(
+    qtbot: QtBot, blackholeHost: Host, store: HostStore, tmp_path: Path, windows: list[MainWindow],
+) -> None:
+    """Two refreshes in a row leave one probe dialing and a second queued behind it; neither may delay exit."""
+    store.add(blackholeHost)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.refreshAll()
+    window.refreshAll()
+    qtbot.wait(300)
+    started = time.monotonic()
+    window.shutdown()
+    assert time.monotonic() - started < 3.0

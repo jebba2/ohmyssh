@@ -353,3 +353,64 @@ def test_global_identity_file_is_used_when_the_host_has_none(
         assert ("password", TEST_USER) not in sshServer.authAttempts
     finally:
         client.close()
+
+
+def test_close_from_another_thread_aborts_a_connect_still_dialing(blackholeHost: Host, tmp_path: Path) -> None:
+    """Quitting must not wait out the connect timeout of a host that never answers."""
+    client = SshClient(blackholeHost, knownHostsPath=tmp_path / "known_hosts")
+    errors: list[SshError] = []
+
+    def connect() -> None:
+        try:
+            client.connect(timeout=10.0)
+        except SshError as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=connect)
+    thread.start()
+    time.sleep(0.3)
+    started = time.monotonic()
+    client.close()
+    thread.join(5.0)
+    assert not thread.is_alive(), "connect() kept dialing after close()"
+    assert time.monotonic() - started < 2.0
+    assert len(errors) == 1 and "closed" in str(errors[0]).lower()
+    assert not client.isConnected()
+
+
+def test_connect_after_close_does_not_dial(blackholeHost: Host, tmp_path: Path) -> None:
+    client = SshClient(blackholeHost, knownHostsPath=tmp_path / "known_hosts")
+    client.close()
+    started = time.monotonic()
+    with pytest.raises(SshError, match="Closed"):
+        client.connect(timeout=10.0)
+    assert time.monotonic() - started < 1.0
+
+
+def test_closing_a_client_under_a_pending_command_raises_ssh_error(sshServer: TestSshServer, tmp_path: Path) -> None:
+    """Shutdown closes connections under running workers; paramiko's bare EOFError must not leak out."""
+    sshServer.execGate = threading.Event()
+    client = SshClient(
+        _hostFor(sshServer),
+        credentials=SshCredentials(password=TEST_PASSWORD),
+        knownHostsPath=tmp_path / "known_hosts",
+    )
+    client.connect()
+    errors: list[SshError] = []
+
+    def run() -> None:
+        try:
+            client.runCommand("uptime")
+        except SshError as error:
+            errors.append(error)
+
+    thread = threading.Thread(target=run)
+    thread.start()
+    try:
+        time.sleep(0.3)
+        client.close()
+        thread.join(5.0)
+    finally:
+        sshServer.execGate.set()
+    assert not thread.is_alive()
+    assert len(errors) == 1 and "closed" in str(errors[0]).lower()
