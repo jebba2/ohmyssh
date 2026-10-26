@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QThreadPool, Signal
+from PySide6.QtGui import QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
@@ -24,7 +25,7 @@ from PySide6.QtWidgets import (
 from pyommyssh.core.connections import ConnectionPool
 from pyommyssh.core.hosts import Host
 from pyommyssh.core.sftp import FileEntry, TransferProgress, TransferResult, localRoots
-from pyommyssh.ui.filePane import FilePane, formatSize
+from pyommyssh.ui.filePane import FilePane, acceptAsCopy, formatSize
 from pyommyssh.ui.sftpBridge import SftpBridge
 from pyommyssh.ui.workers import LocalListWorker
 
@@ -192,6 +193,18 @@ class SftpTab(QWidget):
         layout.addWidget(self.statusLabel)
         layout.addWidget(splitter, 1)
         layout.addWidget(self.transferStrip)
+        # Files from the OS dropped anywhere else on the tab go to the remote folder on show.
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        acceptAsCopy(event, event.mimeData().hasUrls())
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        acceptAsCopy(event, event.mimeData().hasUrls())
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        if acceptAsCopy(event, event.mimeData().hasUrls()):
+            self.remotePane.handleDrop(event.mimeData(), None)
 
     # Status and lifecycle
 

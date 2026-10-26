@@ -252,6 +252,59 @@ def test_drag_enter_accepts_entries_and_files_only(qtbot: QtBot) -> None:
     assert not enter(text)
 
 
+def test_drops_are_always_answered_as_copies_so_the_source_is_never_moved(qtbot: QtBot) -> None:
+    pane = _shownPane(qtbot)
+    pane.setEntries("/home/me", _entries(), parentPath="/home")
+    files = QMimeData()
+    files.setUrls([QUrl.fromLocalFile("C:/Users/me/Desktop/report.pdf")])
+    # Explorer offers copy and move together; the answer must be copy.
+    offered = Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+    enter = QDragEnterEvent(QPointF(5, 5), offered, files, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    pane.table.dragEnterEvent(enter)
+    assert enter.isAccepted() and enter.dropAction() == Qt.DropAction.CopyAction
+    drop = QDropEvent(QPointF(5, 5), offered, files, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    with qtbot.waitSignal(pane.urlsDropped):
+        pane.table.dropEvent(drop)
+    assert drop.isAccepted() and drop.dropAction() == Qt.DropAction.CopyAction
+
+    # A source that allows only a move is refused outright.
+    moveOnly = QDropEvent(
+        QPointF(5, 5), Qt.DropAction.MoveAction, files, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    )
+    with qtbot.assertNotEmitted(pane.urlsDropped, wait=100):
+        pane.table.dropEvent(moveOnly)
+    assert not moveOnly.isAccepted()
+
+
+def test_a_drop_anywhere_on_the_pane_targets_the_folder_on_show(qtbot: QtBot, tmp_path: Path) -> None:
+    pane = _shownPane(qtbot)
+    pane.setEntries("/home/me", _entries(), parentPath="/home")
+    assert pane.acceptDrops()
+    files = QMimeData()
+    files.setUrls([QUrl.fromLocalFile(str(tmp_path / "a.txt"))])
+    offered = Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+    enter = QDragEnterEvent(QPointF(2, 2), offered, files, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    pane.dragEnterEvent(enter)
+    assert enter.isAccepted() and enter.dropAction() == Qt.DropAction.CopyAction
+    drop = QDropEvent(
+        QPointF(2, 2), Qt.DropAction.CopyAction, files, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier
+    )
+    with qtbot.waitSignal(pane.urlsDropped) as dropped:
+        pane.dropEvent(drop)
+    assert dropped.args == [[str(tmp_path / "a.txt")], "/home/me"]
+
+    other = _shownPane(qtbot)
+    other.setEntries("/src", [FileEntry("x.txt", "/src/x.txt", 1, False, None, None)], parentPath="/")
+    _selectRows(other, 1)
+    rows = other.dragMimeData()
+    assert rows is not None
+    with qtbot.waitSignal(pane.entriesDropped) as entries:
+        pane.dropEvent(
+            QDropEvent(QPointF(2, 2), Qt.DropAction.CopyAction, rows, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        )
+    assert entries.args == [other.dragToken, ["/src/x.txt"], "/home/me"]
+
+
 def test_local_pane_default_roots_match_the_platform(qtbot: QtBot) -> None:
     pane = _shownPane(qtbot)
     pane.setRoots(["/"] if os.name != "nt" else ["C:\\", "D:\\"])

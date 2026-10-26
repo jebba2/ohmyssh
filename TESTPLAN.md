@@ -176,7 +176,8 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Dragging a local file and a folder onto the remote pane uploads them into the folder on show; dragging onto a remote folder row puts them inside that folder
 - [ ] Dragging a remote file onto the local pane downloads it; onto a local folder row downloads into that folder
 - [ ] Dragging rows and dropping them back on the same pane does nothing; the `..` row cannot be dragged
-- [ ] Dragging a file from Explorer onto the remote pane uploads it; the local pane does not accept Explorer drops
+- [ ] Dragging a file from the desktop onto the remote pane's list, its path bar, or the empty middle of the SFTP tab uploads it to the remote folder on show, and the file is still on the desktop afterwards
+- [ ] Holding Shift while dragging from Explorer (a move) still uploads and still leaves the original in place
 - [ ] Dropping a drive (`C:\`) or two files named alike from Explorer shows "Not uploaded: ..." naming them, and the rest upload
 - [ ] A drag that would replace existing items asks "Replace N item(s)?" first
 - [ ] `Ctrl+K` lists the SFTP tab as "<host> (files, tab N)" and Enter switches to it

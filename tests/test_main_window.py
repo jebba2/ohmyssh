@@ -1037,6 +1037,36 @@ def test_dropping_explorer_files_uploads_them_and_refuses_roots_and_duplicates(
     assert str(driveRoot) in status and "same.txt" in status and "does-not-exist.txt" in status
 
 
+def test_explorer_files_dropped_anywhere_on_the_sftp_tab_upload_to_the_remote_folder(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    root = _sftpRoot(sftpServer)
+    (root / "inbox").mkdir()
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    dropped = tmp_path / "from-desktop.txt"
+    dropped.write_bytes(b"desktop file")
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    tab.remotePane.navigateRequested.emit("/inbox")
+    qtbot.waitUntil(lambda: tab.remotePane.currentPath() == "/inbox", timeout=WAIT_MS)
+
+    mime = QMimeData()
+    mime.setUrls([QUrl.fromLocalFile(str(dropped))])
+    assert tab.acceptDrops()
+    offered = Qt.DropAction.CopyAction | Qt.DropAction.MoveAction
+    event = QDropEvent(QPointF(1, 1), offered, mime, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+    tab.dropEvent(event)
+    assert event.isAccepted() and event.dropAction() == Qt.DropAction.CopyAction
+    qtbot.waitUntil(lambda: (root / "inbox" / "from-desktop.txt").exists(), timeout=WAIT_MS)
+    assert dropped.exists()
+
+
 def test_cancel_button_stops_a_transfer(
     qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
     windows: list[MainWindow],

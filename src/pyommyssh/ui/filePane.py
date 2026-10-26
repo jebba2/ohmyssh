@@ -80,23 +80,29 @@ class _FileTable(QTableWidget):
         drag.exec(Qt.DropAction.CopyAction)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
-        if self._pane.acceptsDrop(event.mimeData()):
-            event.acceptProposedAction()
-        else:
-            event.ignore()
+        acceptAsCopy(event, self._pane.acceptsDrop(event.mimeData()))
 
     def dragMoveEvent(self, event: QDragMoveEvent) -> None:
-        if self._pane.acceptsDrop(event.mimeData()):
-            event.acceptProposedAction()
-        else:
-            event.ignore()
+        acceptAsCopy(event, self._pane.acceptsDrop(event.mimeData()))
 
     def dropEvent(self, event: QDropEvent) -> None:
-        if not self._pane.acceptsDrop(event.mimeData()):
-            event.ignore()
+        if not acceptAsCopy(event, self._pane.acceptsDrop(event.mimeData())):
             return
         self._pane.handleDrop(event.mimeData(), event.position().toPoint())
-        event.acceptProposedAction()
+
+
+def acceptAsCopy(event: QDropEvent, wanted: bool) -> bool:
+    """Accept a drag or drop as a copy, never as the move the source may have proposed.
+
+    Answering "move" would let Explorer delete the dropped file afterwards,
+    so a source that allows only a move is refused.
+    """
+    if not wanted or not (event.possibleActions() & Qt.DropAction.CopyAction):
+        event.ignore()
+        return False
+    event.setDropAction(Qt.DropAction.CopyAction)
+    event.accept()
+    return True
 
 
 class FilePane(QWidget):
@@ -115,6 +121,8 @@ class FilePane(QWidget):
         self._entries: list[FileEntry] = []
         # Names this pane in drags so a drop can tell where the rows came from.
         self.dragToken = f"pane-{id(self)}"
+        # A drop anywhere on the pane, not only on the table, lands in the folder on show.
+        self.setAcceptDrops(True)
 
         self.titleLabel = QLabel(title)
         self.titleLabel.setObjectName("paneTitle")
@@ -250,9 +258,23 @@ class FilePane(QWidget):
             return entry.path
         return self._path
 
-    def handleDrop(self, mime: QMimeData, point: QPoint) -> None:
-        """Turn a drop into ``entriesDropped`` or ``urlsDropped``."""
-        target = self.dropTargetAt(point)
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        acceptAsCopy(event, self.acceptsDrop(event.mimeData()))
+
+    def dragMoveEvent(self, event: QDragMoveEvent) -> None:
+        acceptAsCopy(event, self.acceptsDrop(event.mimeData()))
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        if acceptAsCopy(event, self.acceptsDrop(event.mimeData())):
+            self.handleDrop(event.mimeData(), None)
+
+    def handleDrop(self, mime: QMimeData, point: QPoint | None) -> None:
+        """Turn a drop into ``entriesDropped`` or ``urlsDropped``.
+
+        ``point`` is a table position that may pick a folder row; None means
+        the folder on show.
+        """
+        target = self.dropTargetAt(point) if point is not None else self._path
         if mime.hasFormat(ENTRIES_MIME_TYPE):
             payload = self._payloadOf(mime)
             token = str(payload.get("token", ""))
