@@ -1,4 +1,4 @@
-<p align="center"><img src="src/ohmyssh/ui/icons/app.svg" width="128" alt="ohmyssh logo: the word ohmyssh on two lines with a small padlock"></p>
+<p align="center"><img src="src/ohmyssh/ui/icons/app.svg" width="128" alt="ohmyssh logo: the word ohmyssh on two lines with a small gold ring"></p>
 
 # ohmyssh
 

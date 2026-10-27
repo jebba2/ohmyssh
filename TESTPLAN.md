@@ -11,7 +11,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 - [x] `uv run ohmyssh` opens the main window with a Dashboard tab
 - [ ] `uv run python -m ohmyssh` does the same
-- [ ] The window title bar and the taskbar show the "ohmy" over "ssh" logo with a small padlock on a teal-to-blue tile, including when run from source with `uv run ohmyssh` (not the Python icon)
+- [ ] The window title bar and the taskbar show the "ohmy" over "ssh" logo with a small gold ring on a teal-to-blue tile, including when run from source with `uv run ohmyssh` (not the Python icon)
 - [ ] Pinning the running app to the taskbar keeps the logo on the pinned button
 - [ ] The packaged `ohmyssh.exe` shows the same icon in Explorer and the taskbar
 - [x] `uv run python scripts/build_icon.py` regenerates `app.ico` with seven sizes and prints what it wrote
