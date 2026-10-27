@@ -25,9 +25,13 @@ from PySide6.QtWidgets import (
 from ohmyssh.core.connections import ConnectionPool
 from ohmyssh.core.hosts import Host
 from ohmyssh.core.sftp import FileEntry, TransferProgress, TransferResult, localRoots
+from ohmyssh.ui.elidedLabel import ElidedLabel
 from ohmyssh.ui.filePane import FilePane, acceptAsCopy, formatSize
 from ohmyssh.ui.sftpBridge import SftpBridge
 from ohmyssh.ui.workers import LocalListWorker
+
+# The transfer bar never shrinks below this, however long the file name beside it.
+PROGRESS_BAR_MIN_WIDTH = 160
 
 MAX_LISTED_NAMES = 10
 
@@ -173,9 +177,10 @@ class SftpTab(QWidget):
         splitter.setStretchFactor(1, 0)
         splitter.setStretchFactor(2, 1)
 
-        self.transferLabel = QLabel("")
+        self.transferLabel = ElidedLabel()
         self.transferBar = QProgressBar()
         self.transferBar.setTextVisible(False)
+        self.transferBar.setMinimumWidth(PROGRESS_BAR_MIN_WIDTH)
         self.cancelButton = QPushButton("Cancel")
         self.cancelButton.setToolTip("Stop the running transfer and drop the queued ones")
         self.cancelButton.clicked.connect(self._bridge.cancelTransfers)

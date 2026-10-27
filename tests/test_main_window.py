@@ -23,7 +23,7 @@ from ohmyssh.core.tunnel import TunnelState, TunnelStatus
 from ohmyssh.ui.filePane import FilePane
 from ohmyssh.ui.keyGenerateDialog import KeyGenerateRequest
 from ohmyssh.ui.mainWindow import MainWindow
-from ohmyssh.ui.sftpTab import SftpTab
+from ohmyssh.ui.sftpTab import PROGRESS_BAR_MIN_WIDTH, SftpTab
 from tests.echoserver import EchoServer
 from tests.sshserver import SHELL_BANNER, TEST_PASSWORD, TEST_USER, TestSshServer, hostFor
 
@@ -1075,6 +1075,29 @@ def test_explorer_files_dropped_anywhere_on_the_sftp_tab_upload_to_the_remote_fo
     assert event.isAccepted() and event.dropAction() == Qt.DropAction.CopyAction
     qtbot.waitUntil(lambda: (root / "inbox" / "from-desktop.txt").exists(), timeout=WAIT_MS)
     assert dropped.exists()
+
+
+def test_transfer_strip_keeps_its_bar_when_the_file_name_is_long(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    longName = "n" * 240 + ".bin"
+    (localDir / longName).write_bytes(b"\x00" * (8 * 1024 * 1024))
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    _selectNamed(tab.localPane, longName)
+    qtbot.mouseClick(tab.uploadButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: longName in tab.transferLabel.text(), timeout=WAIT_MS)
+    assert tab.transferBar.width() >= PROGRESS_BAR_MIN_WIDTH
+    assert tab.transferLabel.elidedText() != tab.transferLabel.text()
+    assert tab.transferLabel.width() + tab.transferBar.width() + tab.cancelButton.width() <= tab.transferStrip.width()
+    qtbot.waitUntil(lambda: tab.transferStrip.isHidden(), timeout=WAIT_MS)
 
 
 def test_cancel_button_stops_a_transfer(

@@ -173,6 +173,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Uploading over existing files asks "Replace N item(s)?" once, listing the names; No leaves the server untouched, Yes replaces them
 - [ ] Uploading a large file shows a moving progress bar; Cancel removes the partial file on the server, shows "Transfer cancelled", and drops any queued transfers
 - [ ] Opening a remote folder while a transfer runs shows "Loading..." then the folder
+- [ ] Transferring a file with a very long name keeps the progress bar and Cancel button at full size; the name is shortened in the middle with an ellipsis and the full text shows in a tooltip
 - [ ] A transfer that skips an item (for example a symlink in a folder) finishes and shows "skipped 1 item(s)" with the reason above the panes
 - [ ] Closing the tab mid-transfer stops the transfer
 - [ ] New folder asks for a name and the folder appears on the right; a blank or cancelled name does nothing
