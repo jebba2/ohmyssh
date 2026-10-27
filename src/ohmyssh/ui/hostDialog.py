@@ -6,7 +6,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -33,6 +32,7 @@ from ohmyssh.ui.globalSettingsDialog import (
     setTriState,
     triState,
 )
+from ohmyssh.ui.comboBox import ComboBox
 
 FORWARD_FIELD_HEIGHT = 64
 SAVE_IN_SSH_CONFIG = "~/.ssh/config"
@@ -78,7 +78,7 @@ class HostDialog(QDialog):
         self.setWindowTitle("Edit host" if host else "Add host")
 
         # New hosts go to ~/.ssh/config so plain ssh sees them; an existing host stays where it is.
-        self.saveInCombo = QComboBox()
+        self.saveInCombo = ComboBox()
         self.saveInCombo.addItems([SAVE_IN_SSH_CONFIG, SAVE_IN_APP])
         if host is not None:
             self.saveInCombo.setCurrentIndex(0 if host.source == HostSource.SSH_CONFIG else 1)

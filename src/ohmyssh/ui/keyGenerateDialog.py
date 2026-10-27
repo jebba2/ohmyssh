@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -18,6 +17,7 @@ from PySide6.QtWidgets import (
 )
 
 from ohmyssh.core.keys import KeyGenerateRequest, KeyType, defaultKeyComment, defaultKeyFileName
+from ohmyssh.ui.comboBox import ComboBox
 
 KEY_TYPE_LABELS = {
     KeyType.ED25519: "Ed25519 (recommended)",
@@ -33,7 +33,7 @@ class KeyGenerateDialog(QDialog):
         self.setWindowTitle("Generate SSH key")
         self._defaultDir = defaultDir or Path.home() / ".ssh"
 
-        self.typeCombo = QComboBox()
+        self.typeCombo = ComboBox()
         for keyType, label in KEY_TYPE_LABELS.items():
             self.typeCombo.addItem(label, keyType)
         self.commentEdit = QLineEdit(defaultKeyComment())

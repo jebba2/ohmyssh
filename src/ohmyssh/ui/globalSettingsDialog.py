@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from ohmyssh.core.hosts import GlobalSettings
+from ohmyssh.ui.comboBox import ComboBox
 
 NOT_SET = -1
 MAX_SECONDS = 86400
@@ -42,7 +43,7 @@ def optionalInt(spin: QSpinBox) -> int | None:
 
 def makeTriStateCombo(choices: tuple[str, str, str]) -> QComboBox:
     """A combo for unset / yes / no, in that order."""
-    combo = QComboBox()
+    combo = ComboBox()
     combo.addItems(list(choices))
     return combo
 

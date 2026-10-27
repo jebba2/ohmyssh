@@ -198,6 +198,9 @@ QLineEdit, QSpinBox, QListWidget, QPlainTextEdit, QComboBox {
     border-radius: 4px;
     padding: 4px;
 }
+QComboBox {
+    combobox-popup: 0;
+}
 QComboBox QAbstractItemView {
     background: #141417;
     color: #e0e0e0;

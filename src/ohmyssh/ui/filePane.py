@@ -20,7 +20,6 @@ from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
 from PySide6.QtGui import QDrag, QDragEnterEvent, QDragMoveEvent, QDropEvent
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -33,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from ohmyssh.core.sftp import FileEntry
+from ohmyssh.ui.comboBox import ComboBox
 
 PARENT_ROW_LABEL = ".."
 COLUMNS = ("Name", "Size", "Modified")
@@ -126,7 +126,7 @@ class FilePane(QWidget):
 
         self.titleLabel = QLabel(title)
         self.titleLabel.setObjectName("paneTitle")
-        self.rootsCombo = QComboBox()
+        self.rootsCombo = ComboBox()
         self.rootsCombo.setVisible(False)
         self.rootsCombo.currentIndexChanged.connect(self._onRootChosen)
         self.upButton = QToolButton()
