@@ -260,3 +260,22 @@ def test_invalid_forward_blocks_accept_with_the_reason(qtbot: QtBot) -> None:
     dialog.remoteForwardsEdit.setPlainText("")
     dialog.accept()
     assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def test_a_name_ssh_config_cannot_hold_keeps_the_dialog_open_with_the_convention(qtbot: QtBot) -> None:
+    dialog = HostDialog(existingNames=set())
+    qtbot.addWidget(dialog)
+    dialog.nameEdit.setText("cetlodevweb02 (cetlocron)")
+    dialog.hostnameEdit.setText("cetlodevweb02.example.edu")
+    dialog.accept()
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert dialog.errorLabel.text() == (
+        "'cetlodevweb02 (cetlocron)' cannot be used as a Host name in ~/.ssh/config: "
+        "use one word with no spaces, *, ?, ! or #, such as cetlodevweb02-cetlocron"
+    )
+
+    # A host kept in the app is only a label, so the same name is fine there.
+    dialog.saveInCombo.setCurrentIndex(1)
+    dialog.accept()
+    assert dialog.result() == QDialog.DialogCode.Accepted
+    assert dialog.host().name == "cetlodevweb02 (cetlocron)"

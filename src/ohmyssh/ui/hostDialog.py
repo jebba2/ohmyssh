@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from ohmyssh.core.forwards import ForwardKind, PortForward
 from ohmyssh.core.hosts import Host, HostSource
+from ohmyssh.core.sshconfig import hostNameProblem
 from ohmyssh.ui.globalSettingsDialog import (
     MAX_COUNT,
     MAX_SECONDS,
@@ -202,6 +203,10 @@ class HostDialog(QDialog):
         originalName = self._original.name if self._original else None
         if name != originalName and name in self._existingNames:
             return f"A host named '{name}' already exists"
+        if self.saveToSshConfig():
+            problem = hostNameProblem(name)
+            if problem:
+                return problem
         if not self.hostnameEdit.text().strip():
             return "Hostname is required"
         try:

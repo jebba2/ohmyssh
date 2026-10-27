@@ -196,9 +196,25 @@ def _replaceManagedLines(
     lines[insertAt:insertAt] = [indent + line.strip() for line in newLines]
 
 
+def hostNameProblem(name: str) -> str | None:
+    """Why ``name`` cannot be written as a Host name, with a legal spelling of it, or None when it can.
+
+    ssh splits a Host line on whitespace and treats *, ?, ! and # specially,
+    so a name must be a single plain word. The suggestion joins the words
+    with hyphens, dropping parentheses so ``server (label)`` becomes
+    ``server-label``.
+    """
+    if name and not _UNSAFE_NAME.search(name):
+        return None
+    suggestion = re.sub(r"[\s*?!#()]+", "-", name).strip("-")
+    example = f", such as {suggestion}" if suggestion else ""
+    return f"'{name}' cannot be used as a Host name in ~/.ssh/config: use one word with no spaces, *, ?, ! or #{example}"
+
+
 def _validate(host: Host) -> None:
-    if not host.name or _UNSAFE_NAME.search(host.name):
-        raise SshConfigError(f"'{host.name}' cannot be used as a Host name: no spaces, *, ?, ! or #")
+    problem = hostNameProblem(host.name)
+    if problem:
+        raise SshConfigError(problem)
     values = [host.hostname, host.user or "", host.proxyJump or "", str(host.identityFile or ""), *host.tags]
     values.extend(forward.spec() for forward in host.forwards)
     for value in values:

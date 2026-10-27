@@ -9,7 +9,7 @@ import pytest
 
 from ohmyssh.core.forwards import ForwardKind, PortForward
 from ohmyssh.core.hosts import GlobalSettings, Host, parseSshConfig
-from ohmyssh.core.sshconfig import MAX_BACKUPS, SshConfigEditor, SshConfigError
+from ohmyssh.core.sshconfig import hostNameProblem, MAX_BACKUPS, SshConfigEditor, SshConfigError
 
 JEB_LAYOUT = (
     "Host *\n"
@@ -289,3 +289,13 @@ def test_host_keepalive_and_compression_lines_are_managed(tmp_path: Path) -> Non
     assert configPath.read_text() == "Host web\n    HostName w.local\n    Compression no\n"
     editor.upsertHost(Host(name="web", hostname="w.local"))
     assert configPath.read_text() == "Host web\n    HostName w.local\n"
+
+
+def test_a_host_name_problem_explains_the_convention_with_a_legal_suggestion() -> None:
+    assert hostNameProblem("cetlodevweb02") is None
+    assert hostNameProblem("web-02.prod") is None
+    assert hostNameProblem("cetlodevweb02 (cetlocron)") == (
+        "'cetlodevweb02 (cetlocron)' cannot be used as a Host name in ~/.ssh/config: "
+        "use one word with no spaces, *, ?, ! or #, such as cetlodevweb02-cetlocron"
+    )
+    assert hostNameProblem("  ") is not None and hostNameProblem("") is not None
