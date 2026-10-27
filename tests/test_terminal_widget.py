@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QGuiApplication, QWheelEvent
+from PySide6.QtGui import QFontMetricsF, QGuiApplication, QWheelEvent
 from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 from pytestqt.qtbot import QtBot
 
@@ -21,6 +21,21 @@ def test_feed_updates_session(qtbot: QtBot) -> None:
     qtbot.addWidget(widget)
     widget.feed(b"hello")
     assert widget.session.lines()[0].startswith("hello")
+
+
+def test_text_runs_land_exactly_on_the_cell_grid(qtbot: QtBot) -> None:
+    """A run of text must end where the grid says its last cell does, or the cursor floats away from it.
+
+    Fonts have fractional advances, so an integer cell width drifts from the
+    drawn text by a pixel per character unless the font is padded to the cell.
+    """
+    for size in (10, 11, 12, 13):
+        widget = TerminalWidget(fontSize=size)
+        qtbot.addWidget(widget)
+        cellWidth, _ = widget.cellSize()
+        prompt = "[cetlocron@cetlodevweb02 ~]$ "
+        drawn = QFontMetricsF(widget.terminalFont()).horizontalAdvance(prompt)
+        assert abs(drawn - len(prompt) * cellWidth) < 0.01, f"{size}pt: drawn {drawn} vs grid {len(prompt) * cellWidth}"
 
 
 def test_resize_follows_cell_grid(qtbot: QtBot) -> None:

@@ -14,6 +14,7 @@ from PySide6.QtGui import (
     QContextMenuEvent,
     QFont,
     QFontMetrics,
+    QFontMetricsF,
     QGuiApplication,
     QKeyEvent,
     QKeySequence,
@@ -111,13 +112,23 @@ class TerminalWidget(QWidget):
         self._font.setStyleHint(QFont.StyleHint.Monospace)
         self._font.setFixedPitch(True)
         self._font.setPointSize(fontSize)
+        # Glyph advances are fractional (Menlo at 11pt is 6.6px) while cells are whole pixels, so
+        # text drawn in runs would drift from the grid by a fraction of a pixel per character and
+        # leave a gap or an overlap before the cursor. Padding each glyph to the cell with letter
+        # spacing keeps every run exactly on the grid.
+        advance = QFontMetricsF(self._font).horizontalAdvance("M")
+        self._cellWidth = max(1, round(advance))
+        self._font.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, self._cellWidth - advance)
         metrics = QFontMetrics(self._font)
-        self._cellWidth = max(1, metrics.horizontalAdvance("M"))
         self._cellHeight = max(1, metrics.height())
         self._ascent = metrics.ascent()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setCursor(Qt.CursorShape.IBeamCursor)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+
+    def terminalFont(self) -> QFont:
+        """Return the font the grid is drawn with, padded so each glyph fills one cell."""
+        return QFont(self._font)
 
     def cellSize(self) -> tuple[int, int]:
         """Return the pixel size of one character cell."""

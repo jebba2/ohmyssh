@@ -86,6 +86,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Clicking the terminal icon beside the host name opens the same kind of tab; hovering shows "Open terminal"
 - [ ] Both card icons render in the packaged exe (not blank squares)
 - [ ] Typing, Enter, Backspace, arrows, Tab completion, and `Ctrl+C` behave as in a normal terminal
+- [ ] On a Mac the typed text follows the colored prompt with normal spacing and the cursor sits directly after the last character, at font sizes 10 through 13 (no gap or overlap at style boundaries)
 - [ ] Tab and Shift+Tab reach the shell (completion works, `Shift+Tab` cycles back in menus such as `fzf`) and never move focus or switch the app's tabs; `Ctrl+Tab` still switches tabs
 - [ ] `vim` or `htop` renders with colors and redraws correctly
 - [ ] Resizing the window resizes the remote PTY (`tput cols` matches)
