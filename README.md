@@ -159,6 +159,8 @@ uv run python scripts/build_macos.py
 
 Run that on a Mac; PyInstaller cannot cross-compile, and the bundle is built for the architecture of the Mac doing the build. It produces `dist/ohmyssh.app`, using `src/ohmyssh/ui/icons/app.icns` as the app icon and `com.rev-x.ohmyssh` as the bundle identifier. The same `--onefile` and `--clean` flags apply, and the log is in `working/build/pyinstaller.log` as on Windows.
 
+Add `--dmg` to also produce `dist/ohmyssh.dmg`. The app is staged in `working/build/dmg` beside a link to `/Applications` and compressed with `hdiutil`, so opening the image shows the app and the Applications folder side by side for a drag-to-install. The image does not change how Gatekeeper treats the app: it is still ad-hoc signed, so a copy from another Mac needs right-click, Open the first time.
+
 The bundle is ad-hoc signed, which is enough to run it on the Mac that built it. On another Mac, Gatekeeper quarantines it until the user right-clicks the app and chooses Open the first time.
 
 ## Regenerating the icons

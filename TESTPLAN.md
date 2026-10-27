@@ -211,6 +211,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [x] `dist/ohmyssh.app` starts, shows the ohmyssh logo in the Dock, and `Info.plist` names `com.rev-x.ohmyssh`
 - [ ] The packaged Mac app reads `~/.ssh/config`, shows cards, and opens a terminal
 - [x] The packaged Mac app logs to `~/Library/Application Support/ohmyssh/working/logs/` and writes nothing inside the bundle
+- [ ] `uv run python scripts/build_macos.py --dmg` writes `dist/ohmyssh.dmg`; double-clicking it mounts a volume showing `ohmyssh.app` beside an `Applications` link, and dragging the app onto the link installs it
 - [x] `uv run python scripts/build_icon.py` writes `app.ico` and `app.icns`, and `iconutil -c iconset` reads the `.icns` back with every size intact
 
 ## Examples

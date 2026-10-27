@@ -53,12 +53,12 @@ def baseCommand(oneFile: bool, clean: bool) -> list[str]:
     return command
 
 
-def parseArguments(description: str) -> argparse.Namespace:
-    """Parse the flags every build script shares: --onefile and --clean."""
+def argumentParser(description: str) -> argparse.ArgumentParser:
+    """Return a parser with the flags every build script shares, --onefile and --clean, for a script to extend."""
     parser = argparse.ArgumentParser(description=description, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--onefile", action="store_true", help="produce a single executable")
     parser.add_argument("--clean", action="store_true", help="clear the PyInstaller cache first")
-    return parser.parse_args()
+    return parser
 
 
 def directorySize(path: Path) -> int:

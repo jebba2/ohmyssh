@@ -15,10 +15,11 @@ antivirus software than one-file builds.
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
-from standalone_build import APP_NAME, DIST_DIR, ICON_DIR, baseCommand, parseArguments, runBuild
+from standalone_build import APP_NAME, DIST_DIR, ICON_DIR, argumentParser as sharedArgumentParser, baseCommand, runBuild
 
 
 def pyinstallerCommand(oneFile: bool, clean: bool) -> list[str]:
@@ -31,8 +32,13 @@ def outputPath(oneFile: bool) -> Path:
     return DIST_DIR / f"{APP_NAME}.exe" if oneFile else DIST_DIR / APP_NAME
 
 
+def argumentParser() -> argparse.ArgumentParser:
+    """Return the parser for this script's flags; Windows has no extras beyond the shared ones."""
+    return sharedArgumentParser(__doc__ or "")
+
+
 def main() -> int:
-    args = parseArguments(__doc__ or "")
+    args = argumentParser().parse_args()
     return runBuild(pyinstallerCommand(args.onefile, args.clean), outputPath(args.onefile), args.onefile)
 
 

@@ -50,3 +50,67 @@ def test_macos_build_uses_the_icns_and_names_the_app_bundle() -> None:
     # Both layouts wrap the program in a .app, which is what gets handed out.
     assert script.outputPath(oneFile=False) == script.DIST_DIR / "ohmyssh.app"
     assert script.outputPath(oneFile=True) == script.DIST_DIR / "ohmyssh.app"
+
+
+def test_only_the_macos_build_offers_a_dmg_flag() -> None:
+    macos = _loadScript("build_macos").argumentParser()
+    assert macos.parse_args([]).dmg is False
+    assert macos.parse_args(["--dmg", "--onefile"]).dmg is True
+    with pytest.raises(SystemExit):
+        _loadScript("build_windows").argumentParser().parse_args(["--dmg"])
+
+
+def test_disk_image_command_compresses_the_staged_folder_into_dist() -> None:
+    script = _loadScript("build_macos")
+    staging = Path("/tmp/stage")
+    image = Path("/tmp/out.dmg")
+    command = script.hdiutilCommand(staging, image)
+    assert command[:2] == ["hdiutil", "create"]
+    assert command[command.index("-volname") + 1] == "ohmyssh"
+    assert command[command.index("-srcfolder") + 1] == str(staging)
+    assert command[command.index("-format") + 1] == "UDZO"
+    assert "-ov" in command and command[-1] == str(image)
+    assert script.diskImagePath() == script.DIST_DIR / "ohmyssh.dmg"
+
+
+def _fakeBundle(root: Path) -> Path:
+    bundle = root / "ohmyssh.app"
+    (bundle / "Contents" / "MacOS").mkdir(parents=True)
+    (bundle / "Contents" / "MacOS" / "ohmyssh").write_text("#!/bin/sh\n")
+    return bundle
+
+
+def test_staging_holds_the_bundle_beside_an_applications_link(tmp_path: Path) -> None:
+    script = _loadScript("build_macos")
+    staging = tmp_path / "stage"
+    staging.mkdir()
+    (staging / "stale.txt").write_text("left over from an earlier build")
+
+    script.stageDiskImage(_fakeBundle(tmp_path), staging)
+
+    assert sorted(child.name for child in staging.iterdir()) == ["Applications", "ohmyssh.app"]
+    assert (staging / "ohmyssh.app" / "Contents" / "MacOS" / "ohmyssh").read_text() == "#!/bin/sh\n"
+    link = staging / "Applications"
+    assert link.is_symlink() and link.readlink() == Path("/Applications")
+
+
+@pytest.mark.skipif(sys.platform != "darwin", reason="hdiutil only exists on macOS")
+def test_disk_image_mounts_with_the_app_and_applications_link(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    import subprocess
+
+    script = _loadScript("build_macos")
+    image = tmp_path / "dist" / "ohmyssh.dmg"
+    image.parent.mkdir()
+
+    assert script.buildDiskImage(_fakeBundle(tmp_path), tmp_path / "stage", image) == 0
+
+    printed = capsys.readouterr()
+    assert printed.err == ""
+    assert printed.out.startswith(f"Built {image} (")
+    mount = tmp_path / "mnt"
+    subprocess.run(["hdiutil", "attach", "-nobrowse", "-readonly", "-mountpoint", str(mount), str(image)], check=True, capture_output=True)
+    try:
+        assert (mount / "ohmyssh.app" / "Contents" / "MacOS" / "ohmyssh").is_file()
+        assert (mount / "Applications").is_symlink()
+    finally:
+        subprocess.run(["hdiutil", "detach", str(mount)], check=True, capture_output=True)
