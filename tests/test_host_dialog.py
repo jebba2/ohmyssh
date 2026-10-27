@@ -262,20 +262,34 @@ def test_invalid_forward_blocks_accept_with_the_reason(qtbot: QtBot) -> None:
     assert dialog.result() == QDialog.DialogCode.Accepted
 
 
-def test_a_name_ssh_config_cannot_hold_keeps_the_dialog_open_with_the_convention(qtbot: QtBot) -> None:
-    dialog = HostDialog(existingNames=set())
+def test_a_name_ssh_config_cannot_hold_pops_up_the_convention_and_keeps_the_dialog_open(qtbot: QtBot) -> None:
+    warnings: list[str] = []
+    dialog = HostDialog(existingNames=set(), warn=warnings.append)
     qtbot.addWidget(dialog)
     dialog.nameEdit.setText("cetlodevweb02 (cetlocron)")
     dialog.hostnameEdit.setText("cetlodevweb02.example.edu")
     dialog.accept()
     assert dialog.result() != QDialog.DialogCode.Accepted
-    assert dialog.errorLabel.text() == (
+    message = (
         "'cetlodevweb02 (cetlocron)' cannot be used as a Host name in ~/.ssh/config: "
         "use one word with no spaces, *, ?, ! or #, such as cetlodevweb02-cetlocron"
     )
+    assert warnings == [message]
+    assert dialog.errorLabel.text() == message
 
-    # A host kept in the app is only a label, so the same name is fine there.
+    # A host kept in the app is only a label, so the same name is fine there, with no popup.
     dialog.saveInCombo.setCurrentIndex(1)
     dialog.accept()
     assert dialog.result() == QDialog.DialogCode.Accepted
     assert dialog.host().name == "cetlodevweb02 (cetlocron)"
+    assert warnings == [message]
+
+
+def test_other_validation_errors_stay_inline_without_a_popup(qtbot: QtBot) -> None:
+    warnings: list[str] = []
+    dialog = HostDialog(existingNames={"taken"}, warn=warnings.append)
+    qtbot.addWidget(dialog)
+    dialog.nameEdit.setText("taken")
+    dialog.accept()
+    assert dialog.errorLabel.text() == "A host named 'taken' already exists"
+    assert warnings == []

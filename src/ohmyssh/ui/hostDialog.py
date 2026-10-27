@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -13,6 +14,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QSpinBox,
@@ -66,10 +68,13 @@ class HostDialog(QDialog):
         host: Host | None = None,
         existingNames: set[str] | None = None,
         parent: QWidget | None = None,
+        warn: Callable[[str], None] | None = None,
     ) -> None:
+        """``warn`` shows a message the user must dismiss; it defaults to a popup on this dialog."""
         super().__init__(parent)
         self._original = host
         self._existingNames = set(existingNames or set())
+        self._warn = warn or self._warnPopup
         self.setWindowTitle("Edit host" if host else "Add host")
 
         # New hosts go to ~/.ssh/config so plain ssh sees them; an existing host stays where it is.
@@ -203,10 +208,6 @@ class HostDialog(QDialog):
         originalName = self._original.name if self._original else None
         if name != originalName and name in self._existingNames:
             return f"A host named '{name}' already exists"
-        if self.saveToSshConfig():
-            problem = hostNameProblem(name)
-            if problem:
-                return problem
         if not self.hostnameEdit.text().strip():
             return "Hostname is required"
         try:
@@ -215,8 +216,27 @@ class HostDialog(QDialog):
             return str(error)
         return None
 
+    def _warnPopup(self, message: str) -> None:
+        QMessageBox.warning(self, "Host name", message)
+
+    def _nameProblem(self) -> str | None:
+        """Why the name cannot go into ~/.ssh/config, or None; an app-stored host can be called anything."""
+        name = self.nameEdit.text().strip()
+        if not name or not self.saveToSshConfig():
+            return None
+        return hostNameProblem(name)
+
     def accept(self) -> None:
-        """Accept only when the fields describe a valid, uniquely named host."""
+        """Accept only when the fields describe a valid, uniquely named host.
+
+        A name ssh cannot hold gets a popup, since the rule needs explaining;
+        the other problems are shown inline under the fields.
+        """
+        error = self._nameProblem()
+        if error:
+            self.errorLabel.setText(error)
+            self._warn(error)
+            return
         error = self._validationError()
         if error:
             self.errorLabel.setText(error)

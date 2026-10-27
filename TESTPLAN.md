@@ -27,7 +27,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] `~/.ssh/config` is byte-for-byte unchanged after running the app without saving a host
 - [ ] `Ctrl+N` opens Add host with "Save in" set to `~/.ssh/config`; leaving Name blank shows "Name is required"
 - [ ] Reusing an existing name shows "A host named '...' already exists"
-- [ ] Naming an SSH config host `web (prod)` keeps the dialog open and the error says to use one word, such as `web-prod`; the same name is accepted when Save in is the app
+- [ ] Naming an SSH config host `web (prod)` pops up a warning that says to use one word, such as `web-prod`, and the dialog stays open after dismissing it; the same name is accepted when Save in is the app
 - [ ] Saving a new host appends a `Host` block at the end of `~/.ssh/config` (tags as a `# tags:` comment), the card appears, and `ssh <name>` in a terminal works
 - [ ] Choosing "App only (hosts.toml)" instead writes `%APPDATA%\ohmyssh\hosts.toml` and leaves `~/.ssh/config` alone
 - [ ] The pencil button beside the name opens Edit host prefilled with "Save in" disabled; saving changes the card
