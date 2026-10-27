@@ -9,32 +9,19 @@
       <stop offset="0.55" stop-color="#d4a017"/>
       <stop offset="1" stop-color="#9a6b00"/>
     </linearGradient>
+    <clipPath id="over0"><circle cx="143.1" cy="160.4" r="20.7"/></clipPath>
   </defs>
   <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#background)"/>
-  <!-- A gold ring in the center, tilted so it reads as a band rather than a flat circle,
-       with a bright highlight along the top edge and a shadow along the inside of the bottom. -->
-  <ellipse cx="128" cy="128" rx="44" ry="36" fill="none" stroke="url(#gold)" stroke-width="18"/>
-  <path d="M89 105 a48 40 0 0 1 78 0" fill="none" stroke="#fff6cc" stroke-width="5" stroke-linecap="round"/>
-  <path d="M99 147 a38 30 0 0 0 58 0" fill="none" stroke="#7a5200" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-  <!-- "oh" sits in the top-left corner, "my" in the top-right, and "ssh" runs straight under the ring.
-       The letters are strokes so the logo never depends on a font being installed: each is drawn with its
-       baseline at y=0 (x-height 30, ascenders 16 above, the y 16 below) and scaled by 1. -->
-  <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <!-- "oh" in the top-left corner -->
-    <g transform="translate(30 70) scale(1)">
-      <g transform="translate(0 0)"><circle cx="11" cy="-15" r="11"/></g>
-      <g transform="translate(31 0)"><path d="M0 -46 V0 M0 -21 a9 9 0 0 1 18 0 V0"/></g>
-    </g>
-    <!-- "my" in the top-right corner -->
-    <g transform="translate(165 70) scale(1)">
-      <g transform="translate(0 0)"><path d="M0 -30 V0 M0 -22 a8 8 0 0 1 16 0 V0 M16 -22 a8 8 0 0 1 16 0 V0"/></g>
-      <g transform="translate(41 0)"><path d="M0 -30 L11 -1 M20 -30 L6 16"/></g>
-    </g>
-    <!-- "ssh" centered under the ring -->
-    <g transform="translate(90 230) scale(1)">
-      <g transform="translate(0 0)"><path d="M20 -30 H7 a7.5 7.5 0 0 0 0 15 H13 a7.5 7.5 0 0 1 0 15 H0"/></g>
-      <g transform="translate(29 0)"><path d="M20 -30 H7 a7.5 7.5 0 0 0 0 15 H13 a7.5 7.5 0 0 1 0 15 H0"/></g>
-      <g transform="translate(58 0)"><path d="M0 -46 V0 M0 -21 a9 9 0 0 1 18 0 V0"/></g>
-    </g>
+  <!-- Two gold rings linked on a diagonal: you and the host, joined by the connection. Each ring is a dark
+       rim under a gold band so the ring on top visibly cuts the one beneath. The second ring is drawn over the
+       first, which covers both crossings; the clipped redraw at the end puts the first ring back on top at the
+       upper crossing, and that single over/under is what makes the pair read as interlocked. -->
+  <circle cx="96.3" cy="142.8" r="50" fill="none" stroke="#5c3d00" stroke-width="25"/>
+  <circle cx="96.3" cy="142.8" r="50" fill="none" stroke="url(#gold)" stroke-width="18"/>
+  <circle cx="159.7" cy="113.2" r="50" fill="none" stroke="#5c3d00" stroke-width="25"/>
+  <circle cx="159.7" cy="113.2" r="50" fill="none" stroke="url(#gold)" stroke-width="18"/>
+  <g clip-path="url(#over0)">
+    <circle cx="96.3" cy="142.8" r="50" fill="none" stroke="#5c3d00" stroke-width="25"/>
+    <circle cx="96.3" cy="142.8" r="50" fill="none" stroke="url(#gold)" stroke-width="18"/>
   </g>
 </svg>
