@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 from ohmyssh.core.connections import ConnectionPool
 from ohmyssh.core.hosts import Host
-from ohmyssh.core.sftp import FileEntry, TransferProgress, TransferResult, localRoots
+from ohmyssh.core.sftp import FileEntry, TransferProgress, TransferResult, localRoots, removeLocal, renameLocal
 from ohmyssh.ui.elidedLabel import ElidedLabel
 from ohmyssh.ui.filePane import FilePane, acceptAsCopy, formatSize
 from ohmyssh.ui.sftpBridge import SftpBridge
@@ -135,6 +135,19 @@ class SftpTab(QWidget):
         self.remotePane.entriesDropped.connect(self._onEntriesDroppedOnRemote)
         self.remotePane.urlsDropped.connect(self._onFilesDroppedOnRemote)
 
+        self.localNewFolderButton = QPushButton("New folder")
+        self.localNewFolderButton.clicked.connect(self.createLocalFolder)
+        self.localRenameButton = QPushButton("Rename")
+        self.localRenameButton.clicked.connect(self.renameLocalSelected)
+        self.localDeleteButton = QPushButton("Delete")
+        self.localDeleteButton.clicked.connect(self.deleteLocalSelected)
+        self.localRefreshButton = QPushButton("Refresh")
+        self.localRefreshButton.clicked.connect(self.refreshLocal)
+        localSide = self._paneWithActions(
+            self.localPane,
+            (self.localNewFolderButton, self.localRenameButton, self.localDeleteButton, self.localRefreshButton),
+        )
+
         self.newFolderButton = QPushButton("New folder")
         self.newFolderButton.clicked.connect(self.createRemoteFolder)
         self.renameButton = QPushButton("Rename")
@@ -142,16 +155,10 @@ class SftpTab(QWidget):
         self.deleteButton = QPushButton("Delete")
         self.deleteButton.clicked.connect(self.deleteSelected)
         self.refreshButton = QPushButton("Refresh")
-        self.refreshButton.clicked.connect(self.refresh)
-        remoteActions = QHBoxLayout()
-        for button in (self.newFolderButton, self.renameButton, self.deleteButton, self.refreshButton):
-            remoteActions.addWidget(button)
-        remoteActions.addStretch(1)
-        remoteSide = QWidget()
-        remoteLayout = QVBoxLayout(remoteSide)
-        remoteLayout.setContentsMargins(0, 0, 0, 0)
-        remoteLayout.addWidget(self.remotePane, 1)
-        remoteLayout.addLayout(remoteActions)
+        self.refreshButton.clicked.connect(self.refreshRemote)
+        remoteSide = self._paneWithActions(
+            self.remotePane, (self.newFolderButton, self.renameButton, self.deleteButton, self.refreshButton)
+        )
 
         self.uploadButton = QPushButton("Upload →")
         self.uploadButton.setToolTip("Copy the selected local items to the remote folder")
@@ -169,7 +176,7 @@ class SftpTab(QWidget):
         middleWidget.setLayout(middle)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.localPane)
+        splitter.addWidget(localSide)
         splitter.addWidget(middleWidget)
         splitter.addWidget(remoteSide)
         splitter.setChildrenCollapsible(False)
@@ -200,6 +207,20 @@ class SftpTab(QWidget):
         layout.addWidget(self.transferStrip)
         # Files from the OS dropped anywhere else on the tab go to the remote folder on show.
         self.setAcceptDrops(True)
+
+    @staticmethod
+    def _paneWithActions(pane: FilePane, buttons: tuple[QPushButton, ...]) -> QWidget:
+        """A pane with its row of action buttons underneath."""
+        actions = QHBoxLayout()
+        for button in buttons:
+            actions.addWidget(button)
+        actions.addStretch(1)
+        side = QWidget()
+        layout = QVBoxLayout(side)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(pane, 1)
+        layout.addLayout(actions)
+        return side
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         acceptAsCopy(event, event.mimeData().hasUrls())
@@ -266,18 +287,37 @@ class SftpTab(QWidget):
     def _updateButtons(self) -> None:
         connected = self._bridge.isConnected() and bool(self.remotePane.currentPath())
         remoteSelected = self.remotePane.selectedEntries()
-        self.uploadButton.setEnabled(connected and bool(self.localPane.selectedEntries()))
+        localSelected = self.localPane.selectedEntries()
+        self.uploadButton.setEnabled(connected and bool(localSelected))
         self.downloadButton.setEnabled(connected and bool(remoteSelected))
         self.newFolderButton.setEnabled(connected)
         self.renameButton.setEnabled(connected and len(remoteSelected) == 1)
         self.deleteButton.setEnabled(connected and bool(remoteSelected))
+        self.localNewFolderButton.setEnabled(bool(self.localPane.currentPath()))
+        self.localRenameButton.setEnabled(len(localSelected) == 1)
+        self.localDeleteButton.setEnabled(bool(localSelected))
+
+    # Prompts shared by both sides
+
+    def _askName(self, title: str, label: str, default: str) -> str | None:
+        """Ask for a name; None when the prompt was cancelled or left blank."""
+        name = self._prompts.text(title, label, default)
+        stripped = name.strip() if name else ""
+        return stripped or None
+
+    def _confirmDelete(self, names: list[str], where: str) -> bool:
+        plural = "item" if len(names) == 1 else "items"
+        return self._prompts.confirm(f"Delete {len(names)} {plural} from {where}?\n\n{_listNames(names)}")
 
     # Remote operations
 
     def refresh(self) -> None:
         """List both panes again."""
-        if self.localPane.currentPath():
-            self.listLocal(self.localPane.currentPath())
+        self.refreshLocal()
+        self.refreshRemote()
+
+    def refreshRemote(self) -> None:
+        """List the remote pane again."""
         if self.remotePane.currentPath():
             self.listRemote(self.remotePane.currentPath())
 
@@ -286,9 +326,9 @@ class SftpTab(QWidget):
         remoteDir = self.remotePane.currentPath()
         if not remoteDir:
             return
-        name = self._prompts.text("New folder", "Folder name", "")
-        if name and name.strip():
-            self._bridge.mkdir(posixpath.join(remoteDir, name.strip()))
+        name = self._askName("New folder", "Folder name", "")
+        if name:
+            self._bridge.mkdir(posixpath.join(remoteDir, name))
 
     def renameSelected(self) -> None:
         """Ask for a new name for the one selected remote item."""
@@ -296,21 +336,69 @@ class SftpTab(QWidget):
         if len(selected) != 1:
             return
         entry = selected[0]
-        name = self._prompts.text("Rename", "New name", entry.name)
-        if name and name.strip() and name.strip() != entry.name:
-            self._bridge.rename(entry.path, posixpath.join(posixpath.dirname(entry.path), name.strip()))
+        name = self._askName("Rename", "New name", entry.name)
+        if name and name != entry.name:
+            self._bridge.rename(entry.path, posixpath.join(posixpath.dirname(entry.path), name))
 
     def deleteSelected(self) -> None:
         """Confirm once, then delete the selected remote files and empty folders."""
         selected = self.remotePane.selectedEntries()
-        if not selected:
-            return
-        names = [entry.name for entry in selected]
-        plural = "item" if len(names) == 1 else "items"
-        if not self._prompts.confirm(f"Delete {len(names)} {plural} from {self.host.name}?\n\n{_listNames(names)}"):
+        if not selected or not self._confirmDelete([entry.name for entry in selected], self.host.name):
             return
         for entry in selected:
             self._bridge.remove(entry.path)
+
+    # Local operations
+
+    def refreshLocal(self) -> None:
+        """List the local pane again."""
+        if self.localPane.currentPath():
+            self.listLocal(self.localPane.currentPath())
+
+    def createLocalFolder(self) -> None:
+        """Ask for a name and create that folder in the local folder on show."""
+        localDir = self.localPane.currentPath()
+        if not localDir:
+            return
+        name = self._askName("New folder", "Folder name", "")
+        if name:
+            path = Path(localDir) / name
+            if self._tryLocal(lambda: path.mkdir(), f"Could not create {path}"):
+                self.refreshLocal()
+
+    def renameLocalSelected(self) -> None:
+        """Ask for a new name for the one selected local item; a taken name is refused."""
+        selected = self.localPane.selectedEntries()
+        if len(selected) != 1:
+            return
+        entry = selected[0]
+        name = self._askName("Rename", "New name", entry.name)
+        if name and name != entry.name:
+            source = Path(entry.path)
+            destination = source.with_name(name)
+            if self._tryLocal(lambda: renameLocal(source, destination), f"Could not rename {source} to {destination}"):
+                self.refreshLocal()
+
+    def deleteLocalSelected(self) -> None:
+        """Confirm once, then delete the selected local files and empty folders."""
+        selected = self.localPane.selectedEntries()
+        if not selected or not self._confirmDelete([entry.name for entry in selected], "this computer"):
+            return
+        removedAny = False
+        for entry in selected:
+            path = Path(entry.path)
+            removedAny = self._tryLocal(lambda: removeLocal(path), f"Could not remove {path}") or removedAny
+        if removedAny:
+            self.refreshLocal()
+
+    def _tryLocal(self, operation: Callable[[], None], failure: str) -> bool:
+        """Run a local file operation; shows why it failed and returns whether it worked."""
+        try:
+            operation()
+        except OSError as error:
+            self.showStatus(f"{failure}: {error}")
+            return False
+        return True
 
     def uploadSelected(self) -> None:
         """Copy the selected local items into the remote folder on show."""

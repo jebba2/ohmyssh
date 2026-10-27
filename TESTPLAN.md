@@ -180,7 +180,9 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Rename is enabled only with exactly one remote item selected; it asks with the current name prefilled and the listing shows the new name
 - [ ] Delete asks "Delete N items from <host>?" listing the names; No leaves them, Yes removes files and empty folders
 - [ ] Deleting a folder with contents shows "Could not remove ..." above the panes and leaves it
-- [ ] Refresh relists both panes and picks up files created outside the app
+- [ ] Refresh under the remote pane relists the remote pane and picks up files created outside the app; Refresh under the local pane does the same for the local pane
+- [ ] Under the local pane, New folder asks for a name and the folder appears on the left; Rename is enabled only with exactly one local item selected and asks with the current name prefilled; renaming onto a name that is taken shows "Could not rename ..." and changes nothing
+- [ ] Under the local pane, Delete asks "Delete N items from this computer?" listing the names; No leaves them, Yes removes files and empty folders; a folder with contents shows "Could not remove ..." and stays
 - [ ] Dragging a local file and a folder onto the remote pane uploads them into the folder on show; dragging onto a remote folder row puts them inside that folder
 - [ ] Dragging a remote file onto the local pane downloads it; onto a local folder row downloads into that folder
 - [ ] Dragging rows and dropping them back on the same pane does nothing; the `..` row cannot be dragged

@@ -928,7 +928,79 @@ def test_new_folder_rename_and_delete_on_the_remote_side(
     assert (root / "full" / "inside.txt").exists()
 
 
-def test_refresh_relists_both_panes(
+def test_new_folder_rename_and_delete_on_the_local_side(
+    qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
+    windows: list[MainWindow],
+) -> None:
+    localDir = tmp_path / "local"
+    localDir.mkdir()
+    (localDir / "a.txt").write_bytes(b"a")
+    (localDir / "b.txt").write_bytes(b"b")
+    (localDir / "full").mkdir()
+    (localDir / "full" / "inside.txt").write_bytes(b"x")
+    host = hostFor(sftpServer, identityFile=clientKeyFile)
+    store.add(host)
+    window = _window(qtbot, store, tmp_path)
+    textAsked: list[tuple[str, str, str]] = []
+    textAnswers: list[str | None] = ["made", "renamed.txt", None, "renamed.txt"]
+    confirmAsked: list[str] = []
+    confirmAnswers = [False, True, True]
+    window.sftpPrompts.text = lambda title, label, default: (textAsked.append((title, label, default)), textAnswers.pop(0))[1]
+    window.sftpPrompts.confirm = lambda message: (confirmAsked.append(message), confirmAnswers.pop(0))[1]
+    windows.append(window)
+    window.show()
+    tab = _openSftpTab(qtbot, window, host, localDir)
+    assert not tab.localRenameButton.isEnabled()
+    assert not tab.localDeleteButton.isEnabled()
+    assert tab.localNewFolderButton.isEnabled()
+
+    qtbot.mouseClick(tab.localNewFolderButton, Qt.MouseButton.LeftButton)
+    assert textAsked[-1] == ("New folder", "Folder name", "")
+    qtbot.waitUntil(lambda: "made" in tab.localPane.names(), timeout=WAIT_MS)
+    assert (localDir / "made").is_dir()
+    assert _sftpRoot(sftpServer).joinpath("made").exists() is False
+
+    _selectNamed(tab.localPane, "a.txt")
+    assert tab.localRenameButton.isEnabled()
+    qtbot.mouseClick(tab.localRenameButton, Qt.MouseButton.LeftButton)
+    assert textAsked[-1] == ("Rename", "New name", "a.txt")
+    qtbot.waitUntil(lambda: "renamed.txt" in tab.localPane.names(), timeout=WAIT_MS)
+    assert (localDir / "renamed.txt").read_bytes() == b"a" and not (localDir / "a.txt").exists()
+
+    # Rename needs exactly one item; a cancelled prompt changes nothing.
+    _selectNamed(tab.localPane, "renamed.txt")
+    _selectNamed(tab.localPane, "b.txt")
+    assert not tab.localRenameButton.isEnabled()
+    tab.localPane.table.clearSelection()
+    _selectNamed(tab.localPane, "b.txt")
+    qtbot.mouseClick(tab.localRenameButton, Qt.MouseButton.LeftButton)
+    qtbot.wait(200)
+    assert (localDir / "b.txt").exists()
+
+    # Renaming onto a name that is taken is refused and the reason shown.
+    qtbot.mouseClick(tab.localRenameButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.statusLabel.text().startswith("Could not rename"), timeout=WAIT_MS)
+    assert (localDir / "b.txt").read_bytes() == b"b" and (localDir / "renamed.txt").read_bytes() == b"a"
+
+    # Deleting asks once for the batch; No leaves everything, Yes removes files and empty folders.
+    _selectNamed(tab.localPane, "made")
+    assert tab.localDeleteButton.isEnabled()
+    qtbot.mouseClick(tab.localDeleteButton, Qt.MouseButton.LeftButton)
+    assert confirmAsked[-1] == "Delete 2 items from this computer?\n\nmade\nb.txt"
+    qtbot.wait(200)
+    assert (localDir / "b.txt").exists() and (localDir / "made").exists()
+    qtbot.mouseClick(tab.localDeleteButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.localPane.names() == ["..", "full", "renamed.txt"], timeout=WAIT_MS)
+
+    # A folder with contents is refused, and the reason is shown.
+    tab.localPane.table.clearSelection()
+    _selectNamed(tab.localPane, "full")
+    qtbot.mouseClick(tab.localDeleteButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: tab.statusLabel.text().startswith("Could not remove"), timeout=WAIT_MS)
+    assert (localDir / "full" / "inside.txt").exists()
+
+
+def test_each_refresh_button_relists_its_own_pane(
     qtbot: QtBot, sftpServer: TestSshServer, clientKeyFile: Path, store: HostStore, tmp_path: Path,
     windows: list[MainWindow],
 ) -> None:
@@ -944,6 +1016,8 @@ def test_refresh_relists_both_panes(
     (localDir / "appeared.txt").write_bytes(b"l")
     qtbot.mouseClick(tab.refreshButton, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: tab.remotePane.names() == ["appeared.txt"], timeout=WAIT_MS)
+    assert tab.localPane.names() == [".."]
+    qtbot.mouseClick(tab.localRefreshButton, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: tab.localPane.names() == ["..", "appeared.txt"], timeout=WAIT_MS)
 
 

@@ -17,6 +17,8 @@ from ohmyssh.core.sftp import (
     TransferProgress,
     listLocalDir,
     localRoots,
+    removeLocal,
+    renameLocal,
 )
 from ohmyssh.core.ssh import SshClient, SshCredentials
 from tests.sshserver import TEST_PASSWORD, TestSshServer, hostFor
@@ -69,6 +71,39 @@ def test_list_local_dir_sorts_folders_first_then_names(tmp_path: Path) -> None:
 def test_list_local_dir_missing_raises(tmp_path: Path) -> None:
     with pytest.raises(OSError):
         listLocalDir(tmp_path / "missing")
+
+
+def test_rename_local_refuses_to_replace_an_existing_path(tmp_path: Path) -> None:
+    (tmp_path / "a.txt").write_bytes(b"a")
+    (tmp_path / "b.txt").write_bytes(b"b")
+    with pytest.raises(FileExistsError):
+        renameLocal(tmp_path / "a.txt", tmp_path / "b.txt")
+    assert (tmp_path / "a.txt").read_bytes() == b"a" and (tmp_path / "b.txt").read_bytes() == b"b"
+    renameLocal(tmp_path / "a.txt", tmp_path / "c.txt")
+    assert (tmp_path / "c.txt").read_bytes() == b"a" and not (tmp_path / "a.txt").exists()
+
+
+def test_remove_local_deletes_files_and_empty_folders_only(tmp_path: Path) -> None:
+    (tmp_path / "file.txt").write_bytes(b"x")
+    (tmp_path / "empty").mkdir()
+    (tmp_path / "full").mkdir()
+    (tmp_path / "full" / "inside.txt").write_bytes(b"x")
+    removeLocal(tmp_path / "file.txt")
+    removeLocal(tmp_path / "empty")
+    assert not (tmp_path / "file.txt").exists() and not (tmp_path / "empty").exists()
+    with pytest.raises(OSError):
+        removeLocal(tmp_path / "full")
+    assert (tmp_path / "full" / "inside.txt").exists()
+
+
+def test_remove_local_unlinks_a_symlink_to_a_folder_and_keeps_the_folder(tmp_path: Path) -> None:
+    (tmp_path / "real").mkdir()
+    try:
+        os.symlink(tmp_path / "real", tmp_path / "link")
+    except (OSError, NotImplementedError):
+        pytest.skip("cannot create symlinks here")
+    removeLocal(tmp_path / "link")
+    assert not (tmp_path / "link").is_symlink() and (tmp_path / "real").is_dir()
 
 
 def test_local_roots() -> None:

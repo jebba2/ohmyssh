@@ -114,6 +114,21 @@ def listLocalDir(path: Path) -> list[FileEntry]:
     return sorted(entries, key=_sortKey)
 
 
+def renameLocal(source: Path, destination: Path) -> None:
+    """Rename a local path, refusing to replace whatever is already at ``destination``. Raises OSError."""
+    if destination.exists() or destination.is_symlink():
+        raise FileExistsError(f"{destination} already exists")
+    source.rename(destination)
+
+
+def removeLocal(path: Path) -> None:
+    """Delete a local file, symlink, or empty folder. Raises OSError, including for a folder with contents."""
+    if path.is_dir() and not path.is_symlink():
+        path.rmdir()
+    else:
+        path.unlink()
+
+
 def localRoots() -> list[str]:
     """The top-level places a local pane can start from: drives on Windows, ``/`` elsewhere."""
     if os.name == "nt":
