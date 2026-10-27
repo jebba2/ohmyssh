@@ -1,6 +1,34 @@
 """Application-wide Qt stylesheets."""
 
-DARK_STYLESHEET = """
+import sys
+
+from PySide6.QtGui import QFontDatabase
+
+# Monospace fonts to try per platform, best first. Naming a family the platform lacks makes Qt
+# substitute one and log a warning on every launch, so the choice is made from what is installed.
+PREFERRED_MONOSPACE = {
+    "darwin": ["Menlo", "Monaco"],
+    "win32": ["Consolas", "Cascadia Mono"],
+    "linux": ["DejaVu Sans Mono", "Liberation Mono"],
+}
+
+
+def monospaceFamily() -> str:
+    """Return the first installed font from the platform's preferred list, else the system fixed-pitch font."""
+    installed = set(QFontDatabase.families())
+    for family in PREFERRED_MONOSPACE.get(sys.platform, []):
+        if family in installed:
+            return family
+    return QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont).family()
+
+
+def darkStylesheet() -> str:
+    """Return the dark theme with the installed monospace family filled in; needs a running QApplication."""
+    return DARK_STYLESHEET_TEMPLATE.replace("MONOSPACE_FAMILY", f'"{monospaceFamily()}"')
+
+
+# The MONOSPACE_FAMILY placeholder is filled in by darkStylesheet().
+DARK_STYLESHEET_TEMPLATE = """
 QMainWindow, QDialog, QScrollArea, QTabWidget::pane, QWidget#dashboardContainer {
     background: #1b1b1f;
     color: #d4d4d4;
@@ -74,7 +102,7 @@ QToolButton#cardButton:hover {
 }
 QLabel#hostAddress, QLabel#hostProcesses, QLabel#hostForwards {
     color: #9a9a9a;
-    font-family: Consolas, monospace;
+    font-family: MONOSPACE_FAMILY;
     font-size: 11px;
 }
 QLabel#hostStatus, QLabel#tunnelStatus {

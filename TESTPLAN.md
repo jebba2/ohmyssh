@@ -199,6 +199,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 
 - [ ] `refresh_interval = 5` in `config.toml` speeds up refreshes
 - [ ] `terminal_font_size = 14` enlarges terminal text
+- [ ] On a Mac the terminal and the host card address lines use Menlo, and launching from a terminal prints no `qt.qpa.fonts` warning about a missing font family
 - [ ] `refresh_interval = 0` shows a warning at startup and defaults are used
 
 ## Standalone build

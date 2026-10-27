@@ -85,6 +85,8 @@ theme = "dark"             # only "dark" exists yet
 terminal_font_size = 11    # points, at least 6
 ```
 
+The terminal and the host card details use the first of these fonts that is installed: Menlo or Monaco on macOS, Consolas or Cascadia Mono on Windows, DejaVu Sans Mono or Liberation Mono on Linux, and otherwise the system's fixed-pitch font.
+
 ### `~/.ssh/config`
 
 The app writes hosts here in plain OpenSSH form, one `Host` block each, appended at the end of the file. A name saved here must be one word with no spaces, `*`, `?`, `!` or `#`, because `ssh` reads `Host web (prod)` as two separate patterns; the host dialog refuses such a name and suggests a hyphenated one like `web-prod`. A host kept in the app can be called anything. Tags are kept as a comment inside the block, which `ssh` ignores:

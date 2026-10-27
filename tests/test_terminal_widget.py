@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QFontMetricsF, QGuiApplication, QWheelEvent
+from PySide6.QtGui import QFontDatabase, QFontInfo, QFontMetricsF, QGuiApplication, QWheelEvent
 from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 from pytestqt.qtbot import QtBot
 
 from ohmyssh.ui.terminalWidget import TerminalWidget
+from ohmyssh.ui.theme import PREFERRED_MONOSPACE, monospaceFamily
 
 
 def _collect(widget: TerminalWidget) -> list[bytes]:
@@ -21,6 +24,19 @@ def test_feed_updates_session(qtbot: QtBot) -> None:
     qtbot.addWidget(widget)
     widget.feed(b"hello")
     assert widget.session.lines()[0].startswith("hello")
+
+
+def test_terminal_uses_an_installed_monospace_font_without_substitution(qtbot: QtBot) -> None:
+    """Naming a font the platform lacks makes Qt substitute one and warn on every launch."""
+    widget = TerminalWidget()
+    qtbot.addWidget(widget)
+    font = widget.terminalFont()
+    resolved = QFontInfo(font)
+    assert resolved.fixedPitch()
+    assert font.family() == monospaceFamily()
+    installed = [family for family in PREFERRED_MONOSPACE.get(sys.platform, []) if family in QFontDatabase.families()]
+    if installed:
+        assert font.family() == installed[0] == resolved.family()
 
 
 def test_text_runs_land_exactly_on_the_cell_grid(qtbot: QtBot) -> None:

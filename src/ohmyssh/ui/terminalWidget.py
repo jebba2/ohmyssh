@@ -36,6 +36,7 @@ from ohmyssh.core.terminal import (
     selectedText,
     wordSpanAt,
 )
+from ohmyssh.ui.theme import monospaceFamily
 
 DEFAULT_COLS = 80
 DEFAULT_ROWS = 24
@@ -108,7 +109,7 @@ class TerminalWidget(QWidget):
         self._clickCount = 0
         self._lastClickTime = 0.0
         self._lastClickCell = CellPosition(-1, -1)
-        self._font = QFont("Consolas")
+        self._font = QFont(monospaceFamily())
         self._font.setStyleHint(QFont.StyleHint.Monospace)
         self._font.setFixedPitch(True)
         self._font.setPointSize(fontSize)

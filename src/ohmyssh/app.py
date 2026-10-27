@@ -14,7 +14,7 @@ from ohmyssh.core.hosts import HostStore
 from ohmyssh.core.sshconfig import SshConfigEditor
 from ohmyssh.ui.icons import loadIcon
 from ohmyssh.ui.mainWindow import MainWindow
-from ohmyssh.ui.theme import DARK_STYLESHEET
+from ohmyssh.ui.theme import darkStylesheet
 
 LOG_MAX_BYTES = 1_000_000
 LOG_BACKUPS = 3
@@ -62,7 +62,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("ohmyssh")
     app.setWindowIcon(loadIcon("app"))
-    app.setStyleSheet(DARK_STYLESHEET)
+    app.setStyleSheet(darkStylesheet())
 
     try:
         settings = loadSettings(paths.settingsFile)
