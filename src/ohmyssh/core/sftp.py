@@ -4,6 +4,9 @@ An ``SftpSession`` opens two SFTP channels: one for browsing, so folders
 still open while a transfer runs, and one for transfers. Each channel is
 meant to be driven from a single thread.
 
+Listings follow symlinks, so a link to a folder opens like the folder and a
+link to a file shows the file's size; a dangling link is listed as itself.
+
 Transfers copy a file, or a folder with everything in it. An existing
 folder is merged into and an existing file replaced. Symlinks and special
 files are skipped, as is any file that fails; the transfer goes on and the
@@ -130,6 +133,16 @@ def _entryFromAttributes(name: str, path: str, attributes: paramiko.SFTPAttribut
     )
 
 
+def _followLink(channel: paramiko.SFTPClient, path: str, attributes: paramiko.SFTPAttributes) -> paramiko.SFTPAttributes:
+    """What a symlink points at, so a link to a folder opens as one. A dangling link keeps its own attributes."""
+    if attributes.st_mode is None or not stat.S_ISLNK(attributes.st_mode):
+        return attributes
+    try:
+        return channel.stat(path)
+    except (OSError, paramiko.SSHException):
+        return attributes
+
+
 def _checkCancel(cancel: threading.Event) -> None:
     if cancel.is_set():
         raise TransferCancelled()
@@ -213,10 +226,10 @@ class SftpSession:
             attributes = channel.listdir_attr(path)
         except (OSError, paramiko.SSHException) as error:
             raise SftpError(f"Could not list {path}: {error}") from error
-        entries = [
-            _entryFromAttributes(attr.filename, posixpath.join(path, attr.filename), attr)
-            for attr in attributes
-        ]
+        entries: list[FileEntry] = []
+        for attr in attributes:
+            childPath = posixpath.join(path, attr.filename)
+            entries.append(_entryFromAttributes(attr.filename, childPath, _followLink(channel, childPath, attr)))
         return sorted(entries, key=_sortKey)
 
     # Transfers

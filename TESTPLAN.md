@@ -162,6 +162,7 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] The left pane is titled "Local" and starts in your home folder; the right pane is titled after the host and starts in the remote home folder
 - [ ] Folders are listed first, then files, both case-insensitively; sizes read like "1.5 KB" and dates like "2026-10-20 14:03"
 - [ ] Double-clicking a folder enters it; double-clicking `..` or clicking Up goes to the parent; at a root there is no `..` and Up is disabled
+- [ ] A remote symlink to a folder is listed among the folders and double-clicking it enters the folder it points at; a symlink to a file shows the file's size
 - [ ] Typing a path in the path bar and pressing Enter navigates there; a bad path shows "Could not list ..." above the table and the old listing stays
 - [ ] On Windows the local pane has a drive switch that lists every drive and changes the listing; on a single-root system there is none
 - [ ] A host that needs a password prompts once; cancelling shows "Password required" above the panes

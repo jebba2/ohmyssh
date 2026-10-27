@@ -100,6 +100,25 @@ def test_home_and_list_remote(sftpServer: TestSshServer, session: SftpSession) -
     assert entries[0].permissions is not None
 
 
+def test_list_remote_follows_symlinks(sftpServer: TestSshServer, session: SftpSession) -> None:
+    root = _root(sftpServer)
+    (root / "real").mkdir()
+    (root / "real" / "inside.txt").write_bytes(b"inside")
+    (root / "file.txt").write_bytes(b"12345")
+    try:
+        os.symlink(root / "real", root / "linkdir")
+        os.symlink(root / "file.txt", root / "linkfile")
+        os.symlink(root / "gone", root / "dangling")
+    except (OSError, NotImplementedError):
+        pytest.skip("cannot create symlinks here")
+    byName = {entry.name: entry for entry in session.listDir("/")}
+    assert byName["linkdir"].isDir and byName["linkdir"].size == 0
+    assert not byName["linkfile"].isDir and byName["linkfile"].size == 5
+    assert "dangling" in byName and not byName["dangling"].isDir
+    assert [entry.name for entry in session.listDir("/")][:2] == ["linkdir", "real"]
+    assert [entry.name for entry in session.listDir("/linkdir")] == ["inside.txt"]
+
+
 def test_stat_remote(sftpServer: TestSshServer, session: SftpSession) -> None:
     (_root(sftpServer) / "docs").mkdir()
     folder = session.stat("/docs")
