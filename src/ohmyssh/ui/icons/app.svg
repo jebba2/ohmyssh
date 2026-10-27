@@ -13,22 +13,28 @@
   <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#background)"/>
   <!-- A gold ring in the center, tilted so it reads as a band rather than a flat circle,
        with a bright highlight along the top edge and a shadow along the inside of the bottom. -->
-  <ellipse cx="128" cy="128" rx="46" ry="38" fill="none" stroke="url(#gold)" stroke-width="18"/>
-  <path d="M87 104 a50 42 0 0 1 82 0" fill="none" stroke="#fff6cc" stroke-width="5" stroke-linecap="round"/>
-  <path d="M97.4 148.6 a40 32 0 0 0 61.2 0" fill="none" stroke="#7a5200" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
-  <!-- "ohmy" arcs over the ring and "ssh" under it, both reading left to right, drawn as strokes so the
-       logo never depends on a font being installed. Each letter is drawn with its baseline at y=0
-       (x-height 30, ascenders 16 above, the y 16 below), scaled by 0.85, placed on the word's baseline
-       circle (radius 74 above, 100 below), and rotated about the tile center. -->
+  <ellipse cx="128" cy="128" rx="44" ry="36" fill="none" stroke="url(#gold)" stroke-width="18"/>
+  <path d="M89 105 a48 40 0 0 1 78 0" fill="none" stroke="#fff6cc" stroke-width="5" stroke-linecap="round"/>
+  <path d="M99 147 a38 30 0 0 0 58 0" fill="none" stroke="#7a5200" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  <!-- "oh" sits in the top-left corner, "my" in the top-right, and "ssh" runs straight under the ring.
+       The letters are strokes so the logo never depends on a font being installed: each is drawn with its
+       baseline at y=0 (x-height 30, ascenders 16 above, the y 16 below) and scaled by 1. -->
   <g fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <!-- "ohmy" over the top -->
-    <g transform="rotate(-31.9 128 128) translate(118.7 54.0) scale(0.85)"><circle cx="11" cy="-15" r="11"/></g>
-    <g transform="rotate(-12.8 128 128) translate(120.3 54.0) scale(0.85)"><path d="M0 -46 V0 M0 -21 a9 9 0 0 1 18 0 V0"/></g>
-    <g transform="rotate(9.5 128 128) translate(114.4 54.0) scale(0.85)"><path d="M0 -30 V0 M0 -22 a8 8 0 0 1 16 0 V0 M16 -22 a8 8 0 0 1 16 0 V0"/></g>
-    <g transform="rotate(32.6 128 128) translate(119.5 54.0) scale(0.85)"><path d="M0 -30 L11 -1 M20 -30 L6 16"/></g>
-    <!-- "ssh" under the bottom -->
-    <g transform="rotate(13.6 128 128) translate(119.5 228.0) scale(0.85)"><path d="M20 -30 H7 a7.5 7.5 0 0 0 0 15 H13 a7.5 7.5 0 0 1 0 15 H0"/></g>
-    <g transform="rotate(-0.5 128 128) translate(119.5 228.0) scale(0.85)"><path d="M20 -30 H7 a7.5 7.5 0 0 0 0 15 H13 a7.5 7.5 0 0 1 0 15 H0"/></g>
-    <g transform="rotate(-14.1 128 128) translate(120.3 228.0) scale(0.85)"><path d="M0 -46 V0 M0 -21 a9 9 0 0 1 18 0 V0"/></g>
+    <!-- "oh" in the top-left corner -->
+    <g transform="translate(30 70) scale(1)">
+      <g transform="translate(0 0)"><circle cx="11" cy="-15" r="11"/></g>
+      <g transform="translate(31 0)"><path d="M0 -46 V0 M0 -21 a9 9 0 0 1 18 0 V0"/></g>
+    </g>
+    <!-- "my" in the top-right corner -->
+    <g transform="translate(165 70) scale(1)">
+      <g transform="translate(0 0)"><path d="M0 -30 V0 M0 -22 a8 8 0 0 1 16 0 V0 M16 -22 a8 8 0 0 1 16 0 V0"/></g>
+      <g transform="translate(41 0)"><path d="M0 -30 L11 -1 M20 -30 L6 16"/></g>
+    </g>
+    <!-- "ssh" centered under the ring -->
+    <g transform="translate(90 230) scale(1)">
+      <g transform="translate(0 0)"><path d="M20 -30 H7 a7.5 7.5 0 0 0 0 15 H13 a7.5 7.5 0 0 1 0 15 H0"/></g>
+      <g transform="translate(29 0)"><path d="M20 -30 H7 a7.5 7.5 0 0 0 0 15 H13 a7.5 7.5 0 0 1 0 15 H0"/></g>
+      <g transform="translate(58 0)"><path d="M0 -46 V0 M0 -21 a9 9 0 0 1 18 0 V0"/></g>
+    </g>
   </g>
 </svg>
