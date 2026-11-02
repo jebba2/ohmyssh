@@ -165,6 +165,21 @@ Add `--dmg` to also produce `dist/ohmyssh.dmg`. The app is staged in `working/bu
 
 The bundle is ad-hoc signed, which is enough to run it on the Mac that built it. On another Mac, Gatekeeper quarantines it until the user right-clicks the app and chooses Open the first time.
 
+## Releasing
+
+Publishing a release on GitHub builds both apps and attaches them to that release. On the repository's Releases page choose "Draft a new release", pick or create a tag such as `v0.2.0`, and click "Publish release". Or from a terminal:
+
+```sh
+gh release create v0.2.0 --generate-notes
+```
+
+The workflow in `.github/workflows/release.yml` then runs `scripts/build_windows.py` on a Windows runner and `scripts/build_macos.py --dmg` on an Apple Silicon macOS runner, and uploads the results to the release as assets:
+
+- `ohmyssh-v0.2.0-windows-x64.zip`, the one-directory build; unzip it and run `ohmyssh/ohmyssh.exe`
+- `ohmyssh-v0.2.0-macos-arm64.dmg`, the disk image described above
+
+The assets appear on the release page a few minutes after publishing, under the release notes, and stay there until the release is deleted. Progress and any build failure show under the Actions tab. Each job also keeps a copy as a workflow artifact on the run, which GitHub discards after its retention period, so the release page is the place to link people to. A draft release does not trigger the build; only publishing does. The macOS build is ad-hoc signed like a local one, so the right-click, Open step still applies.
+
 ## Regenerating the icons
 
 After changing the logo in `src/ohmyssh/ui/icons/app.svg`, regenerate both icon files and commit them:
@@ -207,6 +222,7 @@ src/ohmyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftp
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples
 scripts/              build_windows.py, build_macos.py, build_icon.py
+.github/workflows/    release.yml, builds and attaches both apps when a release is published
 working/              logs, build artifacts (ignored by git)
 ```
 

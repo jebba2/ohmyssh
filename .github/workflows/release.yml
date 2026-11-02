@@ -1,0 +1,81 @@
+# Build the standalone apps whenever a GitHub release is published, and
+# attach them to that release as downloadable assets.
+#
+# Trigger it by publishing a release on the Releases page (or with
+# `gh release create v0.2.0`). The tag name becomes part of each file name,
+# so a release tagged v0.2.0 gets ohmyssh-v0.2.0-windows-x64.zip and
+# ohmyssh-v0.2.0-macos-arm64.dmg. The two jobs run the same build scripts a
+# developer runs by hand, so the shipped files match a local build.
+#
+# Release assets live on the release page under the tag and are kept until
+# the release is deleted. Each job also uploads a copy as a workflow
+# artifact so a failed upload still leaves something to inspect; those
+# expire after GitHub's default retention period.
+
+name: Release builds
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ github.event.release.tag_name }}
+  GH_TOKEN: ${{ github.token }}
+
+jobs:
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build one-directory executable
+        run: uv run python scripts/build_windows.py --clean
+
+      - name: Zip the build folder
+        shell: pwsh
+        run: Compress-Archive -Path dist/ohmyssh -DestinationPath "dist/ohmyssh-$env:TAG-windows-x64.zip"
+
+      - name: Keep a copy on the workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ohmyssh-${{ env.TAG }}-windows-x64
+          path: dist/ohmyssh-${{ env.TAG }}-windows-x64.zip
+
+      - name: Attach to the release
+        shell: pwsh
+        run: gh release upload "$env:TAG" "dist/ohmyssh-$env:TAG-windows-x64.zip" --clobber
+
+  macos:
+    name: macOS arm64
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build app bundle and disk image
+        run: uv run python scripts/build_macos.py --clean --dmg
+
+      - name: Name the disk image after the release
+        run: mv dist/ohmyssh.dmg "dist/ohmyssh-$TAG-macos-arm64.dmg"
+
+      - name: Keep a copy on the workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ohmyssh-${{ env.TAG }}-macos-arm64
+          path: dist/ohmyssh-${{ env.TAG }}-macos-arm64.dmg
+
+      - name: Attach to the release
+        run: gh release upload "$TAG" "dist/ohmyssh-$TAG-macos-arm64.dmg" --clobber
