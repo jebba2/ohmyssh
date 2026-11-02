@@ -165,6 +165,16 @@ Add `--dmg` to also produce `dist/ohmyssh.dmg`. The app is staged in `working/bu
 
 The bundle is ad-hoc signed, which is enough to run it on the Mac that built it. On another Mac, Gatekeeper quarantines it until the user right-clicks the app and chooses Open the first time.
 
+## Building a standalone Linux program
+
+```sh
+uv run python scripts/build_linux.py
+```
+
+Run that on Linux; PyInstaller cannot cross-compile, and the program is built for the architecture of the machine doing the build. It produces `dist/ohmyssh/ohmyssh` with its support files beside it. The same `--onefile` and `--clean` flags apply, and the log is in `working/build/pyinstaller.log` as on the other platforms. PyInstaller cannot embed an icon on Linux, so the window icon comes from the bundled SVG at run time.
+
+The program links against the glibc of the machine that built it, so it runs on distributions with a glibc at least that new. Qt also expects the usual X11 or Wayland client libraries, such as `libxcb-cursor0` on Debian and Ubuntu, which desktop installs already have.
+
 ## Releasing
 
 Publishing a release on GitHub builds both apps and attaches them to that release. On the repository's Releases page choose "Draft a new release", pick or create a tag such as `v0.2.0`, and click "Publish release". Or from a terminal:
@@ -173,10 +183,11 @@ Publishing a release on GitHub builds both apps and attaches them to that releas
 gh release create v0.2.0 --generate-notes
 ```
 
-The workflow in `.github/workflows/release.yml` then runs `scripts/build_windows.py` on a Windows runner and `scripts/build_macos.py --dmg` on an Apple Silicon macOS runner, and uploads the results to the release as assets:
+The workflow in `.github/workflows/release.yml` then runs `scripts/build_windows.py` on a Windows runner, `scripts/build_macos.py --dmg` on an Apple Silicon macOS runner, and `scripts/build_linux.py` on an x64 Ubuntu runner, and uploads the results to the release as assets:
 
 - `ohmyssh-v0.2.0-windows-x64.zip`, the one-directory build; unzip it and run `ohmyssh/ohmyssh.exe`
 - `ohmyssh-v0.2.0-macos-arm64.dmg`, the disk image described above
+- `ohmyssh-v0.2.0-linux-x64.tar.gz`, the one-directory build; unpack it and run `ohmyssh/ohmyssh`
 
 The assets appear on the release page a few minutes after publishing, under the release notes, and stay there until the release is deleted. Progress and any build failure show under the Actions tab. Each job also keeps a copy as a workflow artifact on the run, which GitHub discards after its retention period, so the release page is the place to link people to. A draft release does not trigger the build; only publishing does. The macOS build is ad-hoc signed like a local one, so the right-click, Open step still applies.
 
@@ -221,8 +232,8 @@ src/ohmyssh/core/   hosts, sshconfig, forwards, metrics, ssh, connections, tunne
 src/ohmyssh/ui/     terminalWidget, hostCard, dashboard, dialogs, filePane, sftpTab, sftpBridge, mainWindow, workers
 tests/                pytest suite, including the in-process SSH test server
 examples/             runnable usage examples
-scripts/              build_windows.py, build_macos.py, build_icon.py
-.github/workflows/    release.yml, builds and attaches both apps when a release is published
+scripts/              build_windows.py, build_macos.py, build_linux.py, build_icon.py
+.github/workflows/    release.yml, builds and attaches the Windows, macOS, and Linux apps when a release is published
 working/              logs, build artifacts (ignored by git)
 ```
 

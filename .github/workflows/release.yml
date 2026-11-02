@@ -3,9 +3,10 @@
 #
 # Trigger it by publishing a release on the Releases page (or with
 # `gh release create v0.2.0`). The tag name becomes part of each file name,
-# so a release tagged v0.2.0 gets ohmyssh-v0.2.0-windows-x64.zip and
-# ohmyssh-v0.2.0-macos-arm64.dmg. The two jobs run the same build scripts a
-# developer runs by hand, so the shipped files match a local build.
+# so a release tagged v0.2.0 gets ohmyssh-v0.2.0-windows-x64.zip,
+# ohmyssh-v0.2.0-macos-arm64.dmg, and ohmyssh-v0.2.0-linux-x64.tar.gz. The
+# jobs run the same build scripts a developer runs by hand, so the shipped
+# files match a local build.
 #
 # Release assets live on the release page under the tag and are kept until
 # the release is deleted. Each job also uploads a copy as a workflow
@@ -79,3 +80,29 @@ jobs:
 
       - name: Attach to the release
         run: gh release upload "$TAG" "dist/ohmyssh-$TAG-macos-arm64.dmg" --clobber
+
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build one-directory program
+        run: uv run python scripts/build_linux.py --clean
+
+      - name: Tar the build folder
+        run: tar -C dist -czf "dist/ohmyssh-$TAG-linux-x64.tar.gz" ohmyssh
+
+      - name: Keep a copy on the workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: ohmyssh-${{ env.TAG }}-linux-x64
+          path: dist/ohmyssh-${{ env.TAG }}-linux-x64.tar.gz
+
+      - name: Attach to the release
+        run: gh release upload "$TAG" "dist/ohmyssh-$TAG-linux-x64.tar.gz" --clobber

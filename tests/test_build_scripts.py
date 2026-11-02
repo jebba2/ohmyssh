@@ -13,13 +13,24 @@ SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 ICON_DIR = SCRIPTS_DIR.parent / "src" / "ohmyssh" / "ui" / "icons"
 
 
+def _canCreateSymlinks(root: Path) -> bool:
+    """Report whether this account may create symlinks; Windows refuses without Developer Mode or admin rights."""
+    probe = root / "symlink-probe"
+    try:
+        probe.symlink_to(root)
+    except OSError:
+        return False
+    probe.unlink()
+    return True
+
+
 def _loadScript(name: str) -> ModuleType:
     if str(SCRIPTS_DIR) not in sys.path:
         sys.path.insert(0, str(SCRIPTS_DIR))
     return importlib.import_module(name)
 
 
-@pytest.mark.parametrize("name", ["build_windows", "build_macos"])
+@pytest.mark.parametrize("name", ["build_windows", "build_macos", "build_linux"])
 def test_every_build_bundles_the_icons_as_a_windowed_app(name: str) -> None:
     script = _loadScript(name)
     command = script.pyinstallerCommand(oneFile=False, clean=False)
@@ -52,12 +63,24 @@ def test_macos_build_uses_the_icns_and_names_the_app_bundle() -> None:
     assert script.outputPath(oneFile=True) == script.DIST_DIR / "ohmyssh.app"
 
 
+def test_linux_build_has_no_icon_and_names_the_program_after_the_app() -> None:
+    script = _loadScript("build_linux")
+    command = script.pyinstallerCommand(oneFile=False, clean=False)
+    # PyInstaller only embeds icons on Windows and macOS; the window icon comes from the bundled SVG at run time.
+    assert "--icon" not in command
+    assert "--osx-bundle-identifier" not in command
+    # PyInstaller uses the bare app name for both layouts: a folder holding the program, or the program itself.
+    assert script.outputPath(oneFile=False) == script.DIST_DIR / "ohmyssh"
+    assert script.outputPath(oneFile=True) == script.DIST_DIR / "ohmyssh"
+
+
 def test_only_the_macos_build_offers_a_dmg_flag() -> None:
     macos = _loadScript("build_macos").argumentParser()
     assert macos.parse_args([]).dmg is False
     assert macos.parse_args(["--dmg", "--onefile"]).dmg is True
-    with pytest.raises(SystemExit):
-        _loadScript("build_windows").argumentParser().parse_args(["--dmg"])
+    for name in ["build_windows", "build_linux"]:
+        with pytest.raises(SystemExit):
+            _loadScript(name).argumentParser().parse_args(["--dmg"])
 
 
 def test_disk_image_command_compresses_the_staged_folder_into_dist() -> None:
@@ -81,6 +104,8 @@ def _fakeBundle(root: Path) -> Path:
 
 
 def test_staging_holds_the_bundle_beside_an_applications_link(tmp_path: Path) -> None:
+    if not _canCreateSymlinks(tmp_path):
+        pytest.skip("this account cannot create symlinks")
     script = _loadScript("build_macos")
     staging = tmp_path / "stage"
     staging.mkdir()

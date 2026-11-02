@@ -220,6 +220,9 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] The packaged Mac app reads `~/.ssh/config`, shows cards, and opens a terminal
 - [x] The packaged Mac app logs to `~/Library/Application Support/ohmyssh/working/logs/` and writes nothing inside the bundle
 - [ ] `uv run python scripts/build_macos.py --dmg` writes `dist/ohmyssh.dmg`; double-clicking it mounts a volume showing `ohmyssh.app` beside an `Applications` link, and dragging the app onto the link installs it
+- [ ] `uv run python scripts/build_linux.py` on Linux finishes and prints the output path and size
+- [ ] `dist/ohmyssh/ohmyssh` starts on a Linux desktop without Python, shows the logo in its title bar, and logs to `working/logs/` beside the program
+- [ ] The packaged Linux app reads `~/.ssh/config`, shows cards, and opens a terminal
 - [x] `uv run python scripts/build_icon.py` writes `app.ico` and `app.icns`, and `iconutil -c iconset` reads the `.icns` back with every size intact
 
 ## Release workflow
@@ -227,7 +230,8 @@ Keep this file current with the features and commands that exist. Tick the boxes
 - [ ] Publishing a release tagged `vX.Y.Z` starts the "Release builds" workflow under the Actions tab; saving it as a draft does not
 - [ ] The Windows job attaches `ohmyssh-vX.Y.Z-windows-x64.zip` to the release; unzipping it gives an `ohmyssh/` folder whose `ohmyssh.exe` starts on a machine without Python
 - [ ] The macOS job attaches `ohmyssh-vX.Y.Z-macos-arm64.dmg` to the release; it mounts and the app inside starts on an Apple Silicon Mac after right-click, Open
-- [ ] Both files also appear as artifacts on the workflow run
+- [ ] The Linux job attaches `ohmyssh-vX.Y.Z-linux-x64.tar.gz` to the release; `tar xzf` gives an `ohmyssh/` folder whose `ohmyssh` program is executable and starts on an x64 Linux desktop
+- [ ] All three files also appear as artifacts on the workflow run
 - [ ] A failed build leaves the release without that asset and the Actions tab shows the PyInstaller log tail from the build script
 
 ## Examples
