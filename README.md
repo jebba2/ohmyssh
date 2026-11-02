@@ -2,7 +2,7 @@
 
 # ohmyssh
 
-A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an SSH client with a live server dashboard, built with PySide6 (Qt), paramiko, and pyte. It runs from source on Windows, macOS, and Linux, and can be packaged as a standalone Windows executable or macOS app bundle with PyInstaller.
+A Python desktop port of [OmnySSH](https://github.com/timhartmann7/omnyssh): an SSH client with a live server dashboard, built with PySide6 (Qt), paramiko, and pyte. It runs from source on Windows, macOS, and Linux, and can be packaged as a standalone Windows executable, macOS app bundle, or Linux program with PyInstaller.
 
 ## What it does today (Phases 1 and 2)
 
